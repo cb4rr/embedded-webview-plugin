@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    id="cordova-plugin-embedded-webview"
+    version="1.0.0">
+
+    <name>EmbeddedWebViewPlugin</name>
+    <author>Claudio Barra</author>
+    <description>A Cross Platform Cordova plugin that embeds a native WebView component within your
+        app layout, specifically designed for OutSystems mobile apps</description>
+    <license>MIT</license>
+    <keywords>cordova,android,ios,webview,embedded,outsystems,hybrid</keywords>
+    <repo>https://github.com/cb4rr/embedded-webview-plugin.git</repo>
+    <issue>https://github.com/cb4rr/embedded-webview-plugin/issues</issue>
+
+    <engines>
+        <engine name="cordova" version=">=9.0.0" />
+        <engine name="cordova-android" version=">=9.0.0" />
+        <engine name="cordova-ios" version=">=6.0.0" />
+    </engines>
+
+    <!-- JavaScript Interface -->
+    <js-module src="www/EmbeddedWebView.js" name="EmbeddedWebView">
+        <clobbers target="EmbeddedWebView" />
+    </js-module>
+
+    <!-- ==================== ANDROID PLATFORM ==================== -->
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="EmbeddedWebView">
+                <param name="android-package" value="com.cb4rr.cordova.plugin.EmbeddedWebView" />
+                <param name="onload" value="false" />
+            </feature>
+        </config-file>
+
+        <!-- Permissions -->
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+        </config-file>
+
+        <!-- Enable hardware acceleration for better WebView performance -->
+        <config-file target="AndroidManifest.xml" parent="/manifest/application">
+            <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing"
+                android:value="true" />
+        </config-file>
+
+        <!-- Source files -->
+        <source-file src="src/android/EmbeddedWebView.java"
+            target-dir="src/com/cb4rr/cordova/plugin" />
+    </platform>
+
+    <!-- ==================== iOS PLATFORM ==================== -->
+    <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="EmbeddedWebView">
+                <param name="ios-package" value="EmbeddedWebView" />
+                <param name="onload" value="false" />
+            </feature>
+        </config-file>
+
+        <!-- Source files -->
+        <header-file src="src/ios/EmbeddedWebView.h" />
+        <source-file src="src/ios/EmbeddedWebView.m" />
+
+        <!-- WebKit framework -->
+        <framework src="WebKit.framework" />
+    </platform>
+</plugin>
