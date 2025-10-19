@@ -2,20 +2,20 @@ var exec = require('cordova/exec');
 
 var EmbeddedWebView = {
     /**
-     * Crea y muestra un WebView embebido
-     * @param {string} containerId - ID del div contenedor en el HTML
-     * @param {string} url - URL a cargar
-     * @param {object} options - Opciones adicionales
-     * @param {object} options.headers - Headers HTTP personalizados (ej: Authorization)
-     * @param {boolean} options.enableZoom - Habilitar zoom (default: false)
-     * @param {boolean} options.clearCache - Limpiar cache antes de cargar (default: false)
+     * Create and show an embedded WebView
+     * @param {string} containerId - ID of the div container in the HTML
+     * @param {string} url - URL to load
+     * @param {object} options - Additional options
+     * @param {object} options.headers - Custom HTTP headers (e.g: Authorization)
+     * @param {boolean} options.enableZoom - Enable zoom (default: false)
+     * @param {boolean} options.clearCache - Clear cache before loading (default: false)
      * @param {string} options.userAgent - User agent personalizado
-     * @param {array} options.whitelist - Array de dominios permitidos (ej: ['example.com', '*.google.com'])
-     * @param {boolean} options.allowSubdomains - Permitir subdominios automáticamente (default: true)
+     * @param {array} options.whitelist - Array of allowed domains (e.g: ['example.com', '*.google.com'])
+     * @param {boolean} options.allowSubdomains - Allow subdomains automatically (default: true)
      * @param {function} successCallback
      * @param {function} errorCallback
      * 
-     * @example
+     * @example 
      * EmbeddedWebView.create('my-container', 'https://example.com', {
      *     headers: { 'Authorization': 'Bearer token123' },
      *     whitelist: ['example.com', 'api.example.com', '*.google.com'],
@@ -29,7 +29,7 @@ var EmbeddedWebView = {
     create: function (containerId, url, options, successCallback, errorCallback) {
         options = options || {};
 
-        // Validaciones
+        // Validations
         if (!containerId || typeof containerId !== 'string') {
             errorCallback && errorCallback('containerId must be a non-empty string');
             return;
@@ -40,7 +40,7 @@ var EmbeddedWebView = {
             return;
         }
 
-        // Verificar que el contenedor existe
+        // Verify that the container exists
         var container = document.getElementById(containerId);
         if (!container) {
             errorCallback && errorCallback('Container element not found: ' + containerId);
@@ -57,9 +57,9 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Configura la whitelist de dominios permitidos
-     * @param {array} domains - Array de dominios permitidos
-     * @param {boolean} allowSubdomains - Permitir subdominios (default: true)
+     * Configure the whitelist of allowed domains
+     * @param {array} domains - Array of allowed domains
+     * @param {boolean} allowSubdomains - Allow subdomains automatically (default: true)
      * @param {function} successCallback
      * @param {function} errorCallback
      * 
@@ -77,7 +77,7 @@ var EmbeddedWebView = {
             return;
         }
 
-        // Permitir llamar sin allowSubdomains
+        // Allow calling without allowSubdomains
         if (typeof allowSubdomains === 'function') {
             errorCallback = successCallback;
             successCallback = allowSubdomains;
@@ -94,7 +94,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Limpia la whitelist (permite todos los dominios)
+     * Clear the whitelist (allow all domains)
      * @param {function} successCallback
      * @param {function} errorCallback
      */
@@ -109,7 +109,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Destruye el WebView embebido y libera recursos
+     * Destroy the embedded WebView and release resources
      */
     destroy: function (successCallback, errorCallback) {
         exec(
@@ -122,7 +122,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Navega a una nueva URL en el WebView embebido
+     * Navigate to a new URL in the embedded WebView
      */
     loadUrl: function (url, headers, successCallback, errorCallback) {
         if (typeof headers === 'function') {
@@ -141,7 +141,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Ejecuta JavaScript en el contexto del WebView embebido
+     * Execute JavaScript in the embedded WebView context
      */
     executeScript: function (script, successCallback, errorCallback) {
         if (!script || typeof script !== 'string') {
@@ -159,7 +159,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Muestra u oculta el WebView embebido
+     * Show or hide the embedded WebView
      */
     setVisible: function (visible, successCallback, errorCallback) {
         exec(
@@ -172,7 +172,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Recarga la página actual del WebView
+     * Reload the current page of the WebView
      */
     reload: function (successCallback, errorCallback) {
         exec(
@@ -185,7 +185,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Navega hacia atrás en el historial del WebView
+     * Navigate back in the WebView history
      */
     goBack: function (successCallback, errorCallback) {
         exec(
@@ -198,7 +198,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Navega hacia adelante en el historial del WebView
+     * Navigate forward in the WebView history
      */
     goForward: function (successCallback, errorCallback) {
         exec(
@@ -211,7 +211,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Actualiza la posición y tamaño del WebView embebido
+     * Update the position and size of the embedded WebView
      */
     updatePosition: function (x, y, width, height, successCallback, errorCallback) {
         exec(
@@ -224,7 +224,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Helper: Configura un listener para redimensionar automáticamente
+     * Helper: Setup an auto-resize listener
      */
     setupAutoResize: function (containerId) {
         var container = document.getElementById(containerId);
@@ -263,7 +263,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Detiene el auto-resize configurado con setupAutoResize()
+     * Stop the auto-resize configured with setupAutoResize()
      */
     stopAutoResize: function () {
         if (this._resizeObserver) {
@@ -277,7 +277,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Helper: Inyecta un token de autenticación en el WebView
+     * Helper: Inject an authentication token into the WebView
      */
     injectAuthToken: function (token, storageType, key, successCallback, errorCallback) {
         storageType = storageType || 'localStorage';
@@ -287,7 +287,7 @@ var EmbeddedWebView = {
     },
 
     /**
-     * Helper: Obtiene un valor del storage del WebView
+     * Helper: Get a value from the WebView storage
      */
     getStorageValue: function (key, storageType, successCallback, errorCallback) {
         storageType = storageType || 'localStorage';
