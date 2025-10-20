@@ -96,15 +96,6 @@ public class EmbeddedWebView extends CordovaPlugin {
             return true;
         }
 
-        if (action.equals("updatePosition")) {
-            double x = args.getDouble(0);
-            double y = args.getDouble(1);
-            double width = args.getDouble(2);
-            double height = args.getDouble(3);
-            this.updatePosition(x, y, width, height, callbackContext);
-            return true;
-        }
-
         return false;
     }
 
