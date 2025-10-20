@@ -3,7 +3,6 @@ var exec = require('cordova/exec');
 var EmbeddedWebView = {
     /**
      * Create and show an embedded WebView
-     * @param {string} containerId - ID of the div container in the HTML
      * @param {string} url - URL to load
      * @param {object} options - Additional options
      * @param {object} options.headers - Custom HTTP headers (e.g: Authorization)
@@ -16,7 +15,7 @@ var EmbeddedWebView = {
      * @param {function} errorCallback
      * 
      * @example 
-     * EmbeddedWebView.create('my-container', 'https://example.com', {
+     * EmbeddedWebView.create('https://example.com', {
      *     headers: { 'Authorization': 'Bearer token123' },
      *     whitelist: ['example.com', 'api.example.com', '*.google.com'],
      *     allowSubdomains: true
@@ -26,12 +25,12 @@ var EmbeddedWebView = {
      *     console.error('Error:', err);
      * });
      */
-    create: function (containerId, url, options, successCallback, errorCallback) {
+    create: function (url, options, successCallback, errorCallback) {
         options = options || {};
 
         // Validations
-        if (!containerId || typeof containerId !== 'string') {
-            errorCallback && errorCallback('containerId must be a non-empty string');
+        if (!url || typeof url !== 'string') {
+            errorCallback && errorCallback('url must be a non-empty string');
             return;
         }
 
@@ -40,19 +39,12 @@ var EmbeddedWebView = {
             return;
         }
 
-        // Verify that the container exists
-        var container = document.getElementById(containerId);
-        if (!container) {
-            errorCallback && errorCallback('Container element not found: ' + containerId);
-            return;
-        }
-
         exec(
             successCallback,
             errorCallback,
             'EmbeddedWebView',
             'create',
-            [containerId, url, options]
+            [url, options]
         );
     },
 

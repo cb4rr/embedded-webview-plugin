@@ -28,7 +28,6 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     private static final String TAG = "EmbeddedWebView";
     private WebView embeddedWebView;
-    private String currentContainerId;
     private List<String> whitelist = new ArrayList<>();
     private boolean allowSubdomains = true;
     private boolean whitelistEnabled = false;
@@ -38,10 +37,9 @@ public class EmbeddedWebView extends CordovaPlugin {
             throws JSONException {
 
         if (action.equals("create")) {
-            String containerId = args.getString(0);
-            String url = args.getString(1);
-            JSONObject options = args.getJSONObject(2);
-            this.create(containerId, url, options, callbackContext);
+            String url = args.getString(0);
+            JSONObject options = args.getJSONObject(1);
+            this.create(url, options, callbackContext);
             return true;
         }
 
@@ -161,11 +159,10 @@ public class EmbeddedWebView extends CordovaPlugin {
         }
     }
 
-    private void create(final String containerId, final String url,
+    private void create(final String url,
             final JSONObject options, final CallbackContext callbackContext) {
 
-        Log.d(TAG, "Creating WebView for container: " + containerId);
-        currentContainerId = containerId;
+        Log.d(TAG, "Creating WebView");
 
         try {
             if (options.has("whitelist")) {
@@ -279,25 +276,13 @@ public class EmbeddedWebView extends CordovaPlugin {
 
                     embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
+                    // find container view
+                    // directly add the WebView to the root view
                     ViewGroup rootView = (ViewGroup) cordova.getActivity().findViewById(android.R.id.content);
-
-                    ViewGroup containerView = findContainerView(rootView, currentContainerId);
-
-                    if (containerView == null) {
-                        containerView = new FrameLayout(cordova.getActivity());
-                        containerView.setId(View.generateViewId());
-                        containerView.setTag(currentContainerId);
-
-                        containerView.setLayoutParams(new FrameLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT));
-
-                        rootView.addView(containerView);
-                    }
-
-                    containerView.addView(embeddedWebView, new FrameLayout.LayoutParams(
+                    rootView.addView(embeddedWebView, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
+
                     if (options.has("headers")) {
                         JSONObject headersJson = options.getJSONObject("headers");
                         Map<String, String> headers = jsonToMap(headersJson);
@@ -318,6 +303,30 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     }
 
+    private void logViewHierarchy(View view, String indent) {
+        if (view == null)
+            return;
+
+        String idString = "no-id";
+        try {
+            int id = view.getId();
+            if (id != View.NO_ID) {
+                idString = view.getResources().getResourceName(id);
+            }
+        } catch (Exception e) {
+            // no-op
+        }
+
+        Log.d("ViewHierarchy", indent + view.getClass().getSimpleName() + " (id=" + idString + ")");
+
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                logViewHierarchy(vg.getChildAt(i), indent + "  ");
+            }
+        }
+    }
+
     private void destroy(final CallbackContext callbackContext) {
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
@@ -328,8 +337,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                         parent.removeView(embeddedWebView);
                     }
                     embeddedWebView.destroy();
-                    embeddedWebView = null; 
-                    currentContainerId = null;
+                    embeddedWebView = null;
                     Log.d(TAG, "WebView destroyed");
                     callbackContext.success("WebView destroyed");
                 } else {
@@ -477,28 +485,5 @@ public class EmbeddedWebView extends CordovaPlugin {
             embeddedWebView = null;
         }
         super.onReset();
-    }
-
-    /**
-     * Search recursively for a ViewGroup that matches the containerId.
-     */
-    private ViewGroup findContainerView(ViewGroup root, String containerId) {
-        if (root == null)
-            return null;
-
-        Object tag = root.getTag();
-        if (tag != null && tag.equals(containerId)) {
-            return root;
-        }
-
-        for (int i = 0; i < root.getChildCount(); i++) {
-            View child = root.getChildAt(i);
-            if (child instanceof ViewGroup) {
-                ViewGroup found = findContainerView((ViewGroup) child, containerId);
-                if (found != null)
-                    return found;
-            }
-        }
-        return null;
     }
 }
