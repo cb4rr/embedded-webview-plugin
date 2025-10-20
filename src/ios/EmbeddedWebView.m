@@ -439,30 +439,6 @@ static NSString *const TAG = @"EmbeddedWebView";
     });
 }
 
-- (void)updatePosition:(CDVInvokedUrlCommand*)command {
-    CGFloat x = [[command.arguments objectAtIndex:0] doubleValue];
-    CGFloat y = [[command.arguments objectAtIndex:1] doubleValue];
-    CGFloat width = [[command.arguments objectAtIndex:2] doubleValue];
-    CGFloat height = [[command.arguments objectAtIndex:3] doubleValue];
-    
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            CGRect newFrame = CGRectMake(x, y, width, height);
-            self.embeddedWebView.frame = newFrame;
-            
-            NSLog(@"%@: Position updated to: x=%.2f, y=%.2f, w=%.2f, h=%.2f", TAG, x, y, width, height);
-            
-            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                messageAsString:@"Position updated"];
-            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-        } else {
-            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-        }
-    });
-}
-
 #pragma mark - WKNavigationDelegate
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {

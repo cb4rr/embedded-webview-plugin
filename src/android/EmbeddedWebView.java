@@ -197,63 +197,21 @@ public class EmbeddedWebView extends CordovaPlugin {
             return;
         }
 
-        final String js = "(function() {" +
-                "  var el = document.getElementById('" + containerId + "');" +
-                "  if (!el) {" +
-                "    console.error('Container not found: " + containerId + "');" +
-                "    return null;" +
-                "  }" +
-                "  var rect = el.getBoundingClientRect();" +
-                "  console.log('Container found:', rect);" +
-                "  return JSON.stringify({" +
-                "    x: rect.left," +
-                "    y: rect.top," +
-                "    width: rect.width," +
-                "    height: rect.height" +
-                "  });" +
-                "})()";
-
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                webView.getEngine().evaluateJavascript(js, new ValueCallback<String>() {
-                    @Override
-                    public void onReceiveValue(String result) {
-                        Log.d(TAG, "JS result: " + result);
+                try {
+                    createNativeWebView(url, options, callbackContext);
 
-                        if (result == null || result.equals("null") || result.equals("\"null\"")) {
-                            callbackContext.error("Container not found: " + containerId);
-                            return;
-                        }
-
-                        try {
-                            result = result.replaceAll("^\"|\"$", "");
-                            result = result.replace("\\", "");
-
-                            JSONObject rect = new JSONObject(result);
-
-                            double x = rect.getDouble("x");
-                            double y = rect.getDouble("y");
-                            double width = rect.getDouble("width");
-                            double height = rect.getDouble("height");
-
-                            Log.d(TAG, String.format("Position: x=%.2f, y=%.2f, w=%.2f, h=%.2f",
-                                    x, y, width, height));
-
-                            createNativeWebView(x, y, width, height, url, options, callbackContext);
-
-                        } catch (JSONException e) {
-                            Log.e(TAG, "Error parsing container dimensions: " + e.getMessage());
-                            callbackContext.error("Error parsing container dimensions: " + e.getMessage());
-                        }
-                    }
-                });
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error creating WebView: " + e.getMessage());
+                    callbackContext.error("Error creating WebView: " + e.getMessage());
+                }
             }
         });
     }
 
-    private void createNativeWebView(final double x, final double y,
-            final double width, final double height,
+    private void createNativeWebView(
             final String url, final JSONObject options,
             final CallbackContext callbackContext) {
 
@@ -328,47 +286,21 @@ public class EmbeddedWebView extends CordovaPlugin {
                         }
                     });
 
-                    float scale = cordova.getActivity().getResources()
-                            .getDisplayMetrics().density;
-
-                    // Old implementation by fixed layout
-                    // FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                    // (int) (width * scale),
-                    // (int) (height * scale));
-                    // params.leftMargin = (int) (x * scale);
-                    // params.topMargin = (int) (y * scale);
-
-                    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT);
-                    embeddedWebView.setLayoutParams(params);
-
                     embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                    // Get the root view of the current WebView
-                    View root = webView.getView().getRootView();
-                    // Find the container view by ID
-                    ViewGroup containerView = findContainerView(root, currentContainerId);
-
-                    if (containerView != null) {
-                        Log.d(TAG, "Container view found: " + currentContainerId);
-                        containerView.addView(embeddedWebView,
-                                new FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT));
-                    } else {
-                        Log.w(TAG, "Container view not found for ID: " + currentContainerId + " - fallback to root");
-                        ViewGroup fallbackRoot = (ViewGroup) webView.getView().getParent();
-                        if (fallbackRoot != null) {
-                            fallbackRoot.addView(embeddedWebView,
-                                    new FrameLayout.LayoutParams(
-                                            ViewGroup.LayoutParams.MATCH_PARENT,
-                                            ViewGroup.LayoutParams.MATCH_PARENT));
-                        } else {
-                            callbackContext.error("Could not find any view to attach the WebView");
-                            return;
-                        }
+                    ViewGroup rootView = (ViewGroup) webView.getView().getParent();
+                    ViewGroup containerView = findContainerView(rootView, currentContainerId);
+                    if (containerView == null) {
+                        containerView = new FrameLayout(cordova.getActivity());
+                        containerView.setLayoutParams(new FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT));
+                        ((ViewGroup) webView.getView().getParent()).addView(containerView);
                     }
+                    containerView.addView(embeddedWebView,
+                            new FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT));
 
                     try {
                         if (options.has("headers")) {
@@ -527,31 +459,6 @@ public class EmbeddedWebView extends CordovaPlugin {
         });
     }
 
-    private void updatePosition(final double x, final double y,
-            final double width, final double height,
-            final CallbackContext callbackContext) {
-        cordova.getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (embeddedWebView != null) {
-                    float scale = cordova.getActivity().getResources()
-                            .getDisplayMetrics().density;
-
-                    FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) embeddedWebView.getLayoutParams();
-                    params.width = (int) (width * scale);
-                    params.height = (int) (height * scale);
-                    params.leftMargin = (int) (x * scale);
-                    params.topMargin = (int) (y * scale);
-
-                    embeddedWebView.setLayoutParams(params);
-                    callbackContext.success("Position updated");
-                } else {
-                    callbackContext.error("WebView not initialized");
-                }
-            }
-        });
-    }
-
     private Map<String, String> jsonToMap(JSONObject json) throws JSONException {
         Map<String, String> map = new HashMap<>();
         Iterator<String> keys = json.keys();
@@ -583,28 +490,23 @@ public class EmbeddedWebView extends CordovaPlugin {
     /**
      * Search recursively for a ViewGroup that matches the containerId.
      */
-    private ViewGroup findContainerView(View root, String containerId) {
-        if (!(root instanceof ViewGroup)) {
+    private ViewGroup findContainerView(ViewGroup root, String containerId) {
+        if (root == null)
             return null;
+
+        Object tag = root.getTag();
+        if (tag != null && tag.equals(containerId)) {
+            return root;
         }
 
-        ViewGroup group = (ViewGroup) root;
-        Object tag = group.getTag();
-
-        if (tag != null && tag.toString().equals(containerId)) {
-            return group;
-        }
-
-        int childCount = group.getChildCount();
-        for (int i = 0; i < childCount; i++) {
-            View child = group.getChildAt(i);
-            ViewGroup found = findContainerView(child, containerId);
-            if (found != null) {
-                return found;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child instanceof ViewGroup) {
+                ViewGroup found = findContainerView((ViewGroup) child, containerId);
+                if (found != null)
+                    return found;
             }
         }
-
         return null;
     }
-
 }

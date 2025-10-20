@@ -18,7 +18,6 @@
 - (void)reload:(CDVInvokedUrlCommand*)command;
 - (void)goBack:(CDVInvokedUrlCommand*)command;
 - (void)goForward:(CDVInvokedUrlCommand*)command;
-- (void)updatePosition:(CDVInvokedUrlCommand*)command;
 - (void)setWhitelist:(CDVInvokedUrlCommand*)command;
 - (void)clearWhitelist:(CDVInvokedUrlCommand*)command;
 - (BOOL)isUrlAllowed:(NSString *)urlString;
