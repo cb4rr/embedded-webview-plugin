@@ -194,7 +194,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                 try {
                     createNativeWebView(url, options, callbackContext);
 
-                } catch (JSONException e) {
+                } catch (Exception e) {
                     Log.e(TAG, "Error creating WebView: " + e.getMessage());
                     callbackContext.error("Error creating WebView: " + e.getMessage());
                 }
@@ -279,7 +279,7 @@ public class EmbeddedWebView extends CordovaPlugin {
 
                     embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                    ViewGroup rootView = (ViewGroup) webView.getParent();
+                    ViewGroup rootView = (ViewGroup) cordova.getActivity().findViewById(android.R.id.content);
 
                     ViewGroup containerView = findContainerView(rootView, currentContainerId);
 
@@ -298,15 +298,11 @@ public class EmbeddedWebView extends CordovaPlugin {
                     containerView.addView(embeddedWebView, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
-                    try {
-                        if (options.has("headers")) {
-                            JSONObject headersJson = options.getJSONObject("headers");
-                            Map<String, String> headers = jsonToMap(headersJson);
-                            embeddedWebView.loadUrl(url, headers);
-                        } else {
-                            embeddedWebView.loadUrl(url);
-                        }
-                    } catch (JSONException e) {
+                    if (options.has("headers")) {
+                        JSONObject headersJson = options.getJSONObject("headers");
+                        Map<String, String> headers = jsonToMap(headersJson);
+                        embeddedWebView.loadUrl(url, headers);
+                    } else {
                         embeddedWebView.loadUrl(url);
                     }
 
@@ -332,7 +328,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                         parent.removeView(embeddedWebView);
                     }
                     embeddedWebView.destroy();
-                    embeddedWebView = null;
+                    embeddedWebView = null; 
                     currentContainerId = null;
                     Log.d(TAG, "WebView destroyed");
                     callbackContext.success("WebView destroyed");
