@@ -331,37 +331,59 @@ public class EmbeddedWebView extends CordovaPlugin {
                     float scale = cordova.getActivity().getResources()
                             .getDisplayMetrics().density;
 
-                    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                            (int) (width * scale),
-                            (int) (height * scale));
-                    params.leftMargin = (int) (x * scale);
-                    params.topMargin = (int) (y * scale);
+                    // Old implementation by fixed layout
+                    // FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    // (int) (width * scale),
+                    // (int) (height * scale));
+                    // params.leftMargin = (int) (x * scale);
+                    // params.topMargin = (int) (y * scale);
 
+                    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT);
                     embeddedWebView.setLayoutParams(params);
+
                     embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                    ViewGroup rootView = (ViewGroup) webView.getView().getParent();
-                    if (rootView != null) {
-                        rootView.addView(embeddedWebView);
+                    // Get the root view of the current WebView
+                    View root = webView.getView().getRootView();
+                    // Find the container view by ID
+                    ViewGroup containerView = findContainerView(root, currentContainerId);
 
-                        try {
-                            if (options.has("headers")) {
-                                JSONObject headersJson = options.getJSONObject("headers");
-                                Map<String, String> headers = jsonToMap(headersJson);
-                                embeddedWebView.loadUrl(url, headers);
-                            } else {
-                                embeddedWebView.loadUrl(url);
-                            }
-                        } catch (JSONException e) {
-                            embeddedWebView.loadUrl(url);
-                        }
-
-                        Log.d(TAG, "WebView created successfully");
-                        callbackContext.success("WebView created successfully");
+                    if (containerView != null) {
+                        Log.d(TAG, "Container view found: " + currentContainerId);
+                        containerView.addView(embeddedWebView,
+                                new FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT));
                     } else {
-                        callbackContext.error("Could not find root view to attach WebView");
+                        Log.w(TAG, "Container view not found for ID: " + currentContainerId + " - fallback to root");
+                        ViewGroup fallbackRoot = (ViewGroup) webView.getView().getParent();
+                        if (fallbackRoot != null) {
+                            fallbackRoot.addView(embeddedWebView,
+                                    new FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT));
+                        } else {
+                            callbackContext.error("Could not find any view to attach the WebView");
+                            return;
+                        }
                     }
 
+                    try {
+                        if (options.has("headers")) {
+                            JSONObject headersJson = options.getJSONObject("headers");
+                            Map<String, String> headers = jsonToMap(headersJson);
+                            embeddedWebView.loadUrl(url, headers);
+                        } else {
+                            embeddedWebView.loadUrl(url);
+                        }
+                    } catch (JSONException e) {
+                        embeddedWebView.loadUrl(url);
+                    }
+
+                    Log.d(TAG, "WebView created successfully");
+                    callbackContext.success("WebView created successfully");
                 } catch (Exception e) {
                     Log.e(TAG, "Error creating WebView: " + e.getMessage());
                     e.printStackTrace();
@@ -369,6 +391,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                 }
             }
         });
+
     }
 
     private void destroy(final CallbackContext callbackContext) {
@@ -556,4 +579,32 @@ public class EmbeddedWebView extends CordovaPlugin {
         }
         super.onReset();
     }
+
+    /**
+     * Search recursively for a ViewGroup that matches the containerId.
+     */
+    private ViewGroup findContainerView(View root, String containerId) {
+        if (!(root instanceof ViewGroup)) {
+            return null;
+        }
+
+        ViewGroup group = (ViewGroup) root;
+        Object tag = group.getTag();
+
+        if (tag != null && tag.toString().equals(containerId)) {
+            return group;
+        }
+
+        int childCount = group.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            View child = group.getChildAt(i);
+            ViewGroup found = findContainerView(child, containerId);
+            if (found != null) {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
 }
