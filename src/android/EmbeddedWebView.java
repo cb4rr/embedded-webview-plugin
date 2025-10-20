@@ -288,19 +288,22 @@ public class EmbeddedWebView extends CordovaPlugin {
 
                     embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                    ViewGroup rootView = (ViewGroup) webView.getView().getParent();
+                    ViewGroup rootView = (ViewGroup) cordova.getActivity().findViewById(android.R.id.content);
+
                     ViewGroup containerView = findContainerView(rootView, currentContainerId);
+
                     if (containerView == null) {
                         containerView = new FrameLayout(cordova.getActivity());
+                        containerView.setTag(currentContainerId);
                         containerView.setLayoutParams(new FrameLayout.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT));
-                        ((ViewGroup) webView.getView().getParent()).addView(containerView);
+                        rootView.addView(containerView);
                     }
-                    containerView.addView(embeddedWebView,
-                            new FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT));
+
+                    containerView.addView(embeddedWebView, new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT));
 
                     try {
                         if (options.has("headers")) {
