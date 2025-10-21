@@ -3,6 +3,7 @@ var exec = require('cordova/exec');
 var EmbeddedWebView = {
     /**
      * Create and show an embedded WebView
+     * @param {string} containerId - ID of the container element (default: 'webview-container')
      * @param {string} url - URL to load
      * @param {object} options - Additional options
      * @param {object} options.headers - Custom HTTP headers (e.g: Authorization)
@@ -15,7 +16,7 @@ var EmbeddedWebView = {
      * @param {function} errorCallback
      * 
      * @example 
-     * EmbeddedWebView.create('https://example.com', {
+     * EmbeddedWebView.create('webview-container', 'https://example.com', {
      *     headers: { 'Authorization': 'Bearer token123' },
      *     whitelist: ['example.com', 'api.example.com', '*.google.com'],
      *     allowSubdomains: true
@@ -25,12 +26,12 @@ var EmbeddedWebView = {
      *     console.error('Error:', err);
      * });
      */
-    create: function (url, options, successCallback, errorCallback) {
+    create: function (containerId, url, options, successCallback, errorCallback) {
         options = options || {};
 
         // Validations
-        if (!url || typeof url !== 'string') {
-            errorCallback && errorCallback('url must be a non-empty string');
+        if (!containerId || typeof containerId !== 'string') {
+            errorCallback && errorCallback('containerId must be a non-empty string');
             return;
         }
 
@@ -44,7 +45,7 @@ var EmbeddedWebView = {
             errorCallback,
             'EmbeddedWebView',
             'create',
-            [url, options]
+            [containerId, url, options]
         );
     },
 

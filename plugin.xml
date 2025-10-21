@@ -65,5 +65,6 @@
 
         <!-- WebKit framework -->
         <framework src="WebKit.framework" />
+        <framework src="UIKit.framework" />
     </platform>
 </plugin>
