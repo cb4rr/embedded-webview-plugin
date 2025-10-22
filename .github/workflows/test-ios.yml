@@ -13,73 +13,75 @@ jobs:
     runs-on: macos-13
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
       
       - name: Install Cordova
-        run: |
-          npm install -g cordova
-          cordova --version
+        run: npm install -g cordova
       
       - name: Create test app
-        run: |
-          cordova create testApp com.test.embeddedwebview TestApp
-          cd testApp
-          ls -la
+        run: cordova create testApp com.test.embeddedwebview TestApp
       
       - name: Add iOS platform
         working-directory: testApp
-        run: |
-          cordova platform add ios
-          cordova platform ls
+        run: cordova platform add ios
       
-      - name: Add plugin
+      - name: Install plugin
         working-directory: testApp
         run: |
-          cordova plugin add https://github.com/cb4rr/embedded-webview-plugin.git
+          echo "📦 Installing plugin..."
+          cordova plugin add https://github.com/${{ github.repository }}.git#${{ github.ref_name }}
+          echo "✅ Plugin installed"
           cordova plugin ls
       
       - name: Build iOS
+        id: build
         working-directory: testApp
         run: |
-          cordova build ios 2>&1 | tee ../build-output.log
-          echo "---"
-          echo "Searching for errors..."
-      
-      - name: Verify build
-        run: |
-          if grep -q "BUILD SUCCEEDED" testApp/platforms/ios/build/build.log 2>/dev/null || \
-             grep -q "** BUILD SUCCEEDED **" build-output.log; then
-            echo "✅ Build successful"
+          echo "🔨 Building iOS..."
+          
+          cordova build ios > build.log 2>&1
+          BUILD_EXIT=$?
+          
+          if [ $BUILD_EXIT -eq 0 ]; then
+            echo "✅ BUILD SUCCEEDED"
+            tail -20 build.log
           else
-            echo "❌ Build failed - check logs above"
-            cat build-output.log
+            echo "❌ BUILD FAILED"
+            echo ""
+            echo "========== ERRORS =========="
+            grep -i "error:" build.log || true
+            echo ""
+            echo "========== WARNINGS =========="
+            grep -i "warning:" build.log | head -20 || true
+            echo ""
+            echo "========== LAST 50 LINES =========="
+            tail -50 build.log
             exit 1
           fi
       
-      - name: Upload logs
+      - name: Show errors only
+        if: failure()
+        working-directory: testApp
+        run: |
+          echo "🔍 Detailed error analysis:"
+          echo ""
+          
+          if [ -f build.log ]; then
+            echo "=== COMPILATION ERRORS ==="
+            grep -A 3 "error:" build.log || echo "No compilation errors found"
+            echo ""
+            
+            echo "=== CRITICAL WARNINGS ==="
+            grep -A 2 "warning:" build.log | head -30 || echo "No warnings"
+          fi
+      
+      - name: Upload full logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-build-logs
-          path: |
-            build-output.log
-            testApp/platforms/ios/build/
+          name: build-logs
+          path: testApp/build.log
           retention-days: 7
-      
-      - name: System info
-        if: always()
-        run: |
-          echo "macOS version:"
-          sw_vers
-          echo "---"
-          echo "Xcode version:"
-          xcodebuild -version
-          echo "---"
-          echo "Available simulators:"
-          xcrun simctl list devices available | head -20
