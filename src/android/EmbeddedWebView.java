@@ -41,6 +41,7 @@ public class EmbeddedWebView extends CordovaPlugin {
     private ViewTreeObserver.OnGlobalLayoutListener layoutListener;
     private boolean autoResizeEnabled = false;
     private int lastOrientation = -1;
+    private long lastPositionCheckTime = 0;
     private Runnable orientationCheckRunnable;
 
     @Override
@@ -416,6 +417,12 @@ public class EmbeddedWebView extends CordovaPlugin {
     }
 
     private void positionWebView(int x, int y, int width, int height) {
+        // Limit to 5 checks per second
+        if (System.currentTimeMillis() - lastPositionCheckTime < 200) {
+            return;
+        }
+        lastPositionCheckTime = System.currentTimeMillis();
+        
         ViewGroup rootView = (ViewGroup) cordova.getActivity()
                 .findViewById(android.R.id.content);
 
