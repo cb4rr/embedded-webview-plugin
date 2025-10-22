@@ -41,7 +41,7 @@ jobs:
       - name: Add plugin
         working-directory: testApp
         run: |
-          cordova plugin add file://${{ github.workspace }}
+          cordova plugin add https://github.com/cb4rr/embedded-webview-plugin.git
           cordova plugin ls
       
       - name: Build iOS
