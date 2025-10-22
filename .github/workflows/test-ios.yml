@@ -1,0 +1,85 @@
+name: Test iOS Plugin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build and Test iOS
+    runs-on: macos-13
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Cordova
+        run: |
+          npm install -g cordova
+          cordova --version
+      
+      - name: Create test app
+        run: |
+          cordova create testApp com.test.embeddedwebview TestApp
+          cd testApp
+          ls -la
+      
+      - name: Add iOS platform
+        working-directory: testApp
+        run: |
+          cordova platform add ios
+          cordova platform ls
+      
+      - name: Add plugin
+        working-directory: testApp
+        run: |
+          cordova plugin add ../
+          cordova plugin ls
+      
+      - name: Build iOS
+        working-directory: testApp
+        run: |
+          cordova build ios 2>&1 | tee ../build-output.log
+          echo "---"
+          echo "Searching for errors..."
+      
+      - name: Verify build
+        run: |
+          if grep -q "BUILD SUCCEEDED" testApp/platforms/ios/build/build.log 2>/dev/null || \
+             grep -q "** BUILD SUCCEEDED **" build-output.log; then
+            echo "✅ Build successful"
+          else
+            echo "❌ Build failed - check logs above"
+            cat build-output.log
+            exit 1
+          fi
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            build-output.log
+            testApp/platforms/ios/build/
+          retention-days: 7
+      
+      - name: System info
+        if: always()
+        run: |
+          echo "macOS version:"
+          sw_vers
+          echo "---"
+          echo "Xcode version:"
+          xcodebuild -version
+          echo "---"
+          echo "Available simulators:"
+          xcrun simctl list devices available | head -20
