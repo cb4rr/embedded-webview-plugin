@@ -177,7 +177,8 @@ public class EmbeddedWebView extends CordovaPlugin {
         }
     }
 
-    private void create(final String containerId, final String url, final JSONObject options, final CallbackContext callbackContext) {
+    private void create(final String containerId, final String url, final JSONObject options,
+            final CallbackContext callbackContext) {
         Log.d(TAG, "Creating WebView");
 
         if (embeddedWebView != null) {
@@ -186,16 +187,51 @@ public class EmbeddedWebView extends CordovaPlugin {
         }
 
         try {
-            if (options.has("whitelist")) {
-                JSONArray whitelistArray = options.getJSONArray("whitelist");
-                boolean allowSubs = options.optBoolean("allowSubdomains", true);
-                whitelist.clear();
-                for (int i = 0; i < whitelistArray.length(); i++) {
-                    whitelist.add(whitelistArray.getString(i).toLowerCase());
+            try {
+                if (options.has("whitelist")) {
+                    Object whitelistObj = options.get("whitelist");
+
+                    if (whitelistObj instanceof JSONArray) {
+                        JSONArray whitelistArray = (JSONArray) whitelistObj;
+                        boolean allowSubs = options.optBoolean("allowSubdomains", true);
+                        whitelist.clear();
+                        for (int i = 0; i < whitelistArray.length(); i++) {
+                            whitelist.add(whitelistArray.getString(i).toLowerCase());
+                        }
+                        allowSubdomains = allowSubs;
+                        whitelistEnabled = true;
+                        Log.d(TAG, "Whitelist configured from options: " + whitelist.size() + " domains");
+                    } else if (whitelistObj instanceof String) {
+                        String whitelistStr = (String) whitelistObj;
+                        Log.w(TAG, "Whitelist received as string, attempting to parse: " + whitelistStr);
+
+                        try {
+                            JSONArray whitelistArray = new JSONArray(whitelistStr);
+                            whitelist.clear();
+                            for (int i = 0; i < whitelistArray.length(); i++) {
+                                whitelist.add(whitelistArray.getString(i).toLowerCase());
+                            }
+                            boolean allowSubs = options.optBoolean("allowSubdomains", true);
+                            allowSubdomains = allowSubs;
+                            whitelistEnabled = true;
+                            Log.d(TAG, "Whitelist parsed from string: " + whitelist.size() + " domains");
+                        } catch (JSONException parseError) {
+                            Log.w(TAG, "Could not parse whitelist string as JSON, treating as single domain");
+                            whitelist.clear();
+                            whitelist.add(whitelistStr.toLowerCase());
+                            whitelistEnabled = true;
+                        }
+                    } else {
+                        Log.w(TAG, "Whitelist has unexpected type: " + whitelistObj.getClass().getName());
+                    }
                 }
-                allowSubdomains = allowSubs;
-                whitelistEnabled = true;
-                Log.d(TAG, "Whitelist configured from options: " + whitelist.size() + " domains");
+
+                autoResizeEnabled = options.optBoolean("autoResize", true);
+                containerIdentifier = containerId;
+
+            } catch (JSONException e) {
+                Log.w(TAG, "Error reading options: " + e.getMessage());
+                e.printStackTrace();
             }
 
             autoResizeEnabled = options.optBoolean("autoResize", true);
