@@ -239,10 +239,10 @@ public class EmbeddedWebView extends CordovaPlugin {
 
         containerIdentifier = containerId;
 
-        if (!isUrlAllowed(url)) {
-            callbackContext.error("URL not allowed by whitelist: " + url);
-            return;
-        }
+        //if (!isUrlAllowed(url)) {
+        //    callbackContext.error("URL not allowed by whitelist: " + url);
+        //    return;
+        //}
 
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
@@ -594,10 +594,10 @@ public class EmbeddedWebView extends CordovaPlugin {
     private void loadUrl(final String url, final JSONObject headers,
             final CallbackContext callbackContext) {
 
-        if (!isUrlAllowed(url)) {
-            callbackContext.error("URL not allowed by whitelist: " + url);
-            return;
-        }
+        //if (!isUrlAllowed(url)) {
+        //    callbackContext.error("URL not allowed by whitelist: " + url);
+        //    return;
+        //}
 
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
