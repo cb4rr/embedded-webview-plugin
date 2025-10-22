@@ -4,7 +4,7 @@
 @interface EmbeddedWebView : CDVPlugin
 
 @property (nonatomic, strong) WKWebView *embeddedWebView;
-@property (nonatomic, strong) NSMutableArray *whitelist;
+@property (nonatomic, strong) NSMutableArray *whitelistDomains;  // Fix name
 @property (nonatomic, assign) BOOL allowSubdomains;
 @property (nonatomic, assign) BOOL whitelistEnabled;
 @property (nonatomic, strong) NSString *containerIdentifier;

@@ -7,7 +7,7 @@
 
 - (void)pluginInitialize {
     [super pluginInitialize];
-    self.whitelist = [[NSMutableArray alloc] init];
+    self.whitelistDomains = [[NSMutableArray alloc] init];
     self.allowSubdomains = YES;
     self.whitelistEnabled = NO;
     self.autoResizeEnabled = YES;
@@ -31,15 +31,15 @@
         return;
     }
     
-    [self.whitelist removeAllObjects];
+    [self.whitelistDomains removeAllObjects];
     for (NSString *domain in domains) {
-        [self.whitelist addObject:[domain lowercaseString]];
+        [self.whitelistDomains addObject:[domain lowercaseString]];
     }
     
     self.allowSubdomains = allowSubs;
     self.whitelistEnabled = YES;
     
-    NSString *message = [NSString stringWithFormat:@"Whitelist configured with %lu domains", (unsigned long)self.whitelist.count];
+    NSString *message = [NSString stringWithFormat:@"Whitelist configured with %lu domains", (unsigned long)self.whitelistDomains.count];
     NSLog(@"[EmbeddedWebView] %@", message);
     
     CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
@@ -48,7 +48,7 @@
 }
 
 - (void)clearWhitelist:(CDVInvokedUrlCommand*)command {
-    [self.whitelist removeAllObjects];
+    [self.whitelistDomains removeAllObjects];
     self.whitelistEnabled = NO;
     
     NSLog(@"[EmbeddedWebView] Whitelist cleared");
@@ -59,7 +59,7 @@
 }
 
 - (BOOL)isUrlAllowed:(NSString *)urlString {
-    if (!self.whitelistEnabled || self.whitelist.count == 0) {
+    if (!self.whitelistEnabled || self.whitelistDomains.count == 0) {
         return YES;
     }
     
@@ -72,7 +72,7 @@
     
     NSLog(@"[EmbeddedWebView] Checking URL: %@ (host: %@)", urlString, host);
     
-    for (NSString *allowedDomain in self.whitelist) {
+    for (NSString *allowedDomain in self.whitelistDomains) {
         if ([allowedDomain hasPrefix:@"*."]) {
             NSString *baseDomain = [allowedDomain substringFromIndex:2];
             if ([host isEqualToString:baseDomain] || [host hasSuffix:[@"." stringByAppendingString:baseDomain]]) {
@@ -114,14 +114,14 @@
             allowSubs = YES; // default
         }
         
-        [self.whitelist removeAllObjects];
+        [self.whitelistDomains removeAllObjects];
         for (NSString *domain in whitelistArray) {
-            [self.whitelist addObject:[domain lowercaseString]];
+            [self.whitelistDomains addObject:[domain lowercaseString]];
         }
         
         self.allowSubdomains = allowSubs;
         self.whitelistEnabled = YES;
-        NSLog(@"[EmbeddedWebView] Whitelist configured from options: %lu domains", (unsigned long)self.whitelist.count);
+        NSLog(@"[EmbeddedWebView] Whitelist configured from options: %lu domains", (unsigned long)self.whitelistDomains.count);
     }
     
     self.autoResizeEnabled = YES;
@@ -148,6 +148,14 @@
     }];
 }
 
+- (WKWebView *)getCordovaWebView {
+    // Fix access to Cordova WKWebView
+    if ([self.webView isKindOfClass:[WKWebView class]]) {
+        return (WKWebView *)self.webView;
+    }
+    return nil;
+}
+
 - (void)getContainerBounds:(NSString *)containerId completion:(void (^)(CGRect))completion {
     NSString *script = [NSString stringWithFormat:
         @"(function() {"
@@ -164,7 +172,14 @@
         @"  return null;"
         @"})();", containerId];
     
-    [self.webView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
+    WKWebView *cordovaWebView = [self getCordovaWebView];
+    if (!cordovaWebView) {
+        NSLog(@"[EmbeddedWebView] Could not get Cordova WKWebView");
+        completion(CGRectNull);
+        return;
+    }
+    
+    [cordovaWebView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
         if (error || !result || [result isEqual:[NSNull null]]) {
             completion(CGRectNull);
             return;
