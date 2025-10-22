@@ -203,14 +203,13 @@ public class EmbeddedWebView extends CordovaPlugin {
                 } else if (whitelistObj instanceof String) {
                     String whitelistStr = (String) whitelistObj;
                     Log.w(TAG, "Whitelist received as string, attempting to parse: " + whitelistStr);
-                
+
                     if (whitelistStr.trim().isEmpty()) {
                         Log.d(TAG, "Empty whitelist string, disabling whitelist");
                         whitelistEnabled = false;
                         whitelist.clear();
-                        return;
                     }
-                
+
                     try {
                         JSONArray whitelistArray = new JSONArray(whitelistStr);
                         whitelist.clear();
@@ -231,10 +230,6 @@ public class EmbeddedWebView extends CordovaPlugin {
                     Log.w(TAG, "Whitelist has unexpected type: " + whitelistObj.getClass().getName());
                 }
             }
-
-            autoResizeEnabled = options.optBoolean("autoResize", true);
-            containerIdentifier = containerId;
-
         } catch (Exception e) {
             Log.w(TAG, "Error reading options: " + e.getMessage());
             e.printStackTrace();
