@@ -41,7 +41,7 @@ jobs:
       - name: Add plugin
         working-directory: testApp
         run: |
-          cordova plugin add ../
+          cordova plugin add file://${{ github.workspace }}
           cordova plugin ls
       
       - name: Build iOS
