@@ -10,16 +10,12 @@ var EmbeddedWebView = {
      * @param {boolean} options.enableZoom - Enable zoom (default: false)
      * @param {boolean} options.clearCache - Clear cache before loading (default: false)
      * @param {string} options.userAgent - User agent personalizado
-     * @param {array} options.whitelist - Array of allowed domains (e.g: ['example.com', '*.google.com'])
-     * @param {boolean} options.allowSubdomains - Allow subdomains automatically (default: true)
      * @param {function} successCallback
      * @param {function} errorCallback
      * 
      * @example 
      * EmbeddedWebView.create('webview-container', 'https://example.com', {
      *     headers: { 'Authorization': 'Bearer token123' },
-     *     whitelist: ['example.com', 'api.example.com', '*.google.com'],
-     *     allowSubdomains: true
      * }, function(msg) {
      *     console.log('Success:', msg);
      * }, function(err) {
@@ -46,58 +42,6 @@ var EmbeddedWebView = {
             'EmbeddedWebView',
             'create',
             [containerId, url, options]
-        );
-    },
-
-    /**
-     * Configure the whitelist of allowed domains
-     * @param {array} domains - Array of allowed domains
-     * @param {boolean} allowSubdomains - Allow subdomains automatically (default: true)
-     * @param {function} successCallback
-     * @param {function} errorCallback
-     * 
-     * @example
-     * EmbeddedWebView.setWhitelist(
-     *     ['example.com', '*.google.com', 'api.myapp.com'],
-     *     true,
-     *     function() { console.log('Whitelist configured'); },
-     *     function(err) { console.error(err); }
-     * );
-     */
-    setWhitelist: function (domains, allowSubdomains, successCallback, errorCallback) {
-        if (!Array.isArray(domains)) {
-            errorCallback && errorCallback('domains must be an array');
-            return;
-        }
-
-        // Allow calling without allowSubdomains
-        if (typeof allowSubdomains === 'function') {
-            errorCallback = successCallback;
-            successCallback = allowSubdomains;
-            allowSubdomains = true;
-        }
-
-        exec(
-            successCallback,
-            errorCallback,
-            'EmbeddedWebView',
-            'setWhitelist',
-            [domains, allowSubdomains !== false]
-        );
-    },
-
-    /**
-     * Clear the whitelist (allow all domains)
-     * @param {function} successCallback
-     * @param {function} errorCallback
-     */
-    clearWhitelist: function (successCallback, errorCallback) {
-        exec(
-            successCallback,
-            errorCallback,
-            'EmbeddedWebView',
-            'clearWhitelist',
-            []
         );
     },
 

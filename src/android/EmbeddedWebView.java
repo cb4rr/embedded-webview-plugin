@@ -32,14 +32,11 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     private static final String TAG = "EmbeddedWebView";
     private WebView embeddedWebView;
-    private List<String> whitelist = new ArrayList<>();
-    private boolean allowSubdomains = true;
-    private boolean whitelistEnabled = false;
     private org.apache.cordova.CordovaWebView cordovaWebView;
 
     private String containerIdentifier;
     private ViewTreeObserver.OnGlobalLayoutListener layoutListener;
-    private boolean autoResizeEnabled = false;
+    private boolean autoResizeEnabled = true;
     private int lastOrientation = -1;
     private long lastPositionCheckTime = 0;
     private Runnable orientationCheckRunnable;
@@ -59,18 +56,6 @@ public class EmbeddedWebView extends CordovaPlugin {
             String url = args.getString(1);
             JSONObject options = args.getJSONObject(2);
             this.create(containerId, url, options, callbackContext);
-            return true;
-        }
-
-        if (action.equals("setWhitelist")) {
-            JSONArray domains = args.getJSONArray(0);
-            boolean allowSubs = args.getBoolean(1);
-            this.setWhitelist(domains, allowSubs, callbackContext);
-            return true;
-        }
-
-        if (action.equals("clearWhitelist")) {
-            this.clearWhitelist(callbackContext);
             return true;
         }
 
@@ -116,68 +101,6 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
-    private void setWhitelist(JSONArray domains, boolean allowSubs, CallbackContext callbackContext) {
-        try {
-            whitelist.clear();
-            for (int i = 0; i < domains.length(); i++) {
-                String domain = domains.getString(i);
-                whitelist.add(domain.toLowerCase());
-            }
-            allowSubdomains = allowSubs;
-            whitelistEnabled = true;
-            Log.d(TAG, "Whitelist configured with " + whitelist.size() + " domains");
-            callbackContext.success("Whitelist configured with " + whitelist.size() + " domains");
-        } catch (JSONException e) {
-            callbackContext.error("Error configuring whitelist: " + e.getMessage());
-        }
-    }
-
-    private void clearWhitelist(CallbackContext callbackContext) {
-        whitelist.clear();
-        whitelistEnabled = false;
-        Log.d(TAG, "Whitelist cleared");
-        callbackContext.success("Whitelist cleared");
-    }
-
-    private boolean isUrlAllowed(String url) {
-        if (!whitelistEnabled || whitelist.isEmpty()) {
-            return true;
-        }
-
-        try {
-            Uri uri = Uri.parse(url);
-            String host = uri.getHost();
-            if (host == null) {
-                return false;
-            }
-
-            host = host.toLowerCase();
-            Log.d(TAG, "Checking URL: " + url + " (host: " + host + ")");
-
-            for (String allowedDomain : whitelist) {
-                if (allowedDomain.startsWith("*.")) {
-                    String baseDomain = allowedDomain.substring(2);
-                    if (host.equals(baseDomain) || host.endsWith("." + baseDomain)) {
-                        Log.d(TAG, "URL allowed by wildcard: " + allowedDomain);
-                        return true;
-                    }
-                } else if (host.equals(allowedDomain)) {
-                    Log.d(TAG, "URL allowed by exact match: " + allowedDomain);
-                    return true;
-                } else if (allowSubdomains && host.endsWith("." + allowedDomain)) {
-                    Log.d(TAG, "URL allowed by subdomain: " + allowedDomain);
-                    return true;
-                }
-            }
-
-            Log.w(TAG, "URL blocked by whitelist: " + url);
-            return false;
-        } catch (Exception e) {
-            Log.e(TAG, "Error parsing URL: " + e.getMessage());
-            return false;
-        }
-    }
-
     private void create(final String containerId, final String url, final JSONObject options,
             final CallbackContext callbackContext) {
         Log.d(TAG, "Creating WebView");
@@ -187,63 +110,7 @@ public class EmbeddedWebView extends CordovaPlugin {
             destroy(callbackContext);
         }
 
-        try {
-            if (options.has("whitelist")) {
-                Object whitelistObj = options.get("whitelist");
-
-                if (whitelistObj instanceof JSONArray) {
-                    JSONArray whitelistArray = (JSONArray) whitelistObj;
-                    boolean allowSubs = options.optBoolean("allowSubdomains", true);
-                    whitelist.clear();
-                    for (int i = 0; i < whitelistArray.length(); i++) {
-                        whitelist.add(whitelistArray.getString(i).toLowerCase());
-                    }
-                    allowSubdomains = allowSubs;
-                    whitelistEnabled = true;
-                    Log.d(TAG, "Whitelist configured from options: " + whitelist.size() + " domains");
-                } else if (whitelistObj instanceof String) {
-                    String whitelistStr = (String) whitelistObj;
-                    Log.w(TAG, "Whitelist received as string, attempting to parse: " + whitelistStr);
-
-                    if (whitelistStr.trim().isEmpty()) {
-                        Log.d(TAG, "Empty whitelist string, disabling whitelist");
-                        whitelistEnabled = false;
-                        whitelist.clear();
-                    }
-
-                    try {
-                        JSONArray whitelistArray = new JSONArray(whitelistStr);
-                        whitelist.clear();
-                        for (int i = 0; i < whitelistArray.length(); i++) {
-                            whitelist.add(whitelistArray.getString(i).toLowerCase());
-                        }
-                        boolean allowSubs = options.optBoolean("allowSubdomains", true);
-                        allowSubdomains = allowSubs;
-                        whitelistEnabled = true;
-                        Log.d(TAG, "Whitelist parsed from string: " + whitelist.size() + " domains");
-                    } catch (JSONException parseError) {
-                        Log.w(TAG, "Could not parse whitelist string as JSON, treating as single domain");
-                        whitelist.clear();
-                        whitelist.add(whitelistStr.toLowerCase());
-                        whitelistEnabled = true;
-                    }
-                } else {
-                    Log.w(TAG, "Whitelist has unexpected type: " + whitelistObj.getClass().getName());
-                }
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Error reading options: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        autoResizeEnabled = options.optBoolean("autoResize", true);
-
         containerIdentifier = containerId;
-
-        //if (!isUrlAllowed(url)) {
-        //    callbackContext.error("URL not allowed by whitelist: " + url);
-        //    return;
-        //}
 
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
@@ -368,18 +235,6 @@ public class EmbeddedWebView extends CordovaPlugin {
                                 String description, String failingUrl) {
                             Log.e(TAG, "Error loading page: " + description);
                         }
-
-                        @Override
-                        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                            if (isUrlAllowed(url)) {
-                                view.loadUrl(url);
-                                Log.d(TAG, "Navigation allowed to: " + url);
-                                return true;
-                            } else {
-                                Log.w(TAG, "Navigation blocked by whitelist: " + url);
-                                return true;
-                            }
-                        }
                     });
 
                     embeddedWebView.setWebChromeClient(new WebChromeClient() {
@@ -422,7 +277,7 @@ public class EmbeddedWebView extends CordovaPlugin {
             return;
         }
         lastPositionCheckTime = System.currentTimeMillis();
-        
+
         ViewGroup rootView = (ViewGroup) cordova.getActivity()
                 .findViewById(android.R.id.content);
 
@@ -600,11 +455,6 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     private void loadUrl(final String url, final JSONObject headers,
             final CallbackContext callbackContext) {
-
-        //if (!isUrlAllowed(url)) {
-        //    callbackContext.error("URL not allowed by whitelist: " + url);
-        //    return;
-        //}
 
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
