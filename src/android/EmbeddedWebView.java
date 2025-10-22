@@ -187,60 +187,55 @@ public class EmbeddedWebView extends CordovaPlugin {
         }
 
         try {
-            try {
-                if (options.has("whitelist")) {
-                    Object whitelistObj = options.get("whitelist");
+            if (options.has("whitelist")) {
+                Object whitelistObj = options.get("whitelist");
 
-                    if (whitelistObj instanceof JSONArray) {
-                        JSONArray whitelistArray = (JSONArray) whitelistObj;
-                        boolean allowSubs = options.optBoolean("allowSubdomains", true);
+                if (whitelistObj instanceof JSONArray) {
+                    JSONArray whitelistArray = (JSONArray) whitelistObj;
+                    boolean allowSubs = options.optBoolean("allowSubdomains", true);
+                    whitelist.clear();
+                    for (int i = 0; i < whitelistArray.length(); i++) {
+                        whitelist.add(whitelistArray.getString(i).toLowerCase());
+                    }
+                    allowSubdomains = allowSubs;
+                    whitelistEnabled = true;
+                    Log.d(TAG, "Whitelist configured from options: " + whitelist.size() + " domains");
+                } else if (whitelistObj instanceof String) {
+                    String whitelistStr = (String) whitelistObj;
+                    Log.w(TAG, "Whitelist received as string, attempting to parse: " + whitelistStr);
+
+                    try {
+                        JSONArray whitelistArray = new JSONArray(whitelistStr);
                         whitelist.clear();
                         for (int i = 0; i < whitelistArray.length(); i++) {
                             whitelist.add(whitelistArray.getString(i).toLowerCase());
                         }
+                        boolean allowSubs = options.optBoolean("allowSubdomains", true);
                         allowSubdomains = allowSubs;
                         whitelistEnabled = true;
-                        Log.d(TAG, "Whitelist configured from options: " + whitelist.size() + " domains");
-                    } else if (whitelistObj instanceof String) {
-                        String whitelistStr = (String) whitelistObj;
-                        Log.w(TAG, "Whitelist received as string, attempting to parse: " + whitelistStr);
-
-                        try {
-                            JSONArray whitelistArray = new JSONArray(whitelistStr);
-                            whitelist.clear();
-                            for (int i = 0; i < whitelistArray.length(); i++) {
-                                whitelist.add(whitelistArray.getString(i).toLowerCase());
-                            }
-                            boolean allowSubs = options.optBoolean("allowSubdomains", true);
-                            allowSubdomains = allowSubs;
-                            whitelistEnabled = true;
-                            Log.d(TAG, "Whitelist parsed from string: " + whitelist.size() + " domains");
-                        } catch (JSONException parseError) {
-                            Log.w(TAG, "Could not parse whitelist string as JSON, treating as single domain");
-                            whitelist.clear();
-                            whitelist.add(whitelistStr.toLowerCase());
-                            whitelistEnabled = true;
-                        }
-                    } else {
-                        Log.w(TAG, "Whitelist has unexpected type: " + whitelistObj.getClass().getName());
+                        Log.d(TAG, "Whitelist parsed from string: " + whitelist.size() + " domains");
+                    } catch (JSONException parseError) {
+                        Log.w(TAG, "Could not parse whitelist string as JSON, treating as single domain");
+                        whitelist.clear();
+                        whitelist.add(whitelistStr.toLowerCase());
+                        whitelistEnabled = true;
                     }
+                } else {
+                    Log.w(TAG, "Whitelist has unexpected type: " + whitelistObj.getClass().getName());
                 }
-
-                autoResizeEnabled = options.optBoolean("autoResize", true);
-                containerIdentifier = containerId;
-
-            } catch (JSONException e) {
-                Log.w(TAG, "Error reading options: " + e.getMessage());
-                e.printStackTrace();
             }
 
             autoResizeEnabled = options.optBoolean("autoResize", true);
-
             containerIdentifier = containerId;
 
-        } catch (JSONException e) {
+        } catch (Exception e) {
             Log.w(TAG, "Error reading options: " + e.getMessage());
+            e.printStackTrace();
         }
+
+        autoResizeEnabled = options.optBoolean("autoResize", true);
+
+        containerIdentifier = containerId;
 
         if (!isUrlAllowed(url)) {
             callbackContext.error("URL not allowed by whitelist: " + url);
