@@ -52,8 +52,6 @@
 
     <!-- ==================== iOS PLATFORM ==================== -->
     <platform name="ios">
-        <preference name="deployment-target" value="12.0" />
-
         <config-file target="config.xml" parent="/*">
             <feature name="EmbeddedWebView">
                 <param name="ios-package" value="EmbeddedWebView" />
