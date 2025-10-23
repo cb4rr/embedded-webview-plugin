@@ -100,7 +100,6 @@ public class EmbeddedWebView extends CordovaPlugin {
 
         cordova.getActivity().runOnUiThread(() -> {
             try {
-                // Obtener valores de offset (en píxeles)
                 int topOffset = options.optInt("top", 0);
                 int bottomOffset = options.optInt("bottom", 0);
 
@@ -109,7 +108,6 @@ public class EmbeddedWebView extends CordovaPlugin {
 
                 embeddedWebView = new WebView(cordova.getActivity());
 
-                // Configurar WebView
                 WebSettings settings = embeddedWebView.getSettings();
                 settings.setJavaScriptEnabled(true);
                 settings.setDomStorageEnabled(true);
@@ -137,25 +135,20 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                // Obtener el content view
                 ViewGroup decorView = (ViewGroup) cordova.getActivity().getWindow().getDecorView();
                 ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
 
-                // Crear LayoutParams que ocupen toda la pantalla
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT);
 
-                // Aplicar offsets como márgenes
                 params.topMargin = topOffset;
                 params.bottomMargin = bottomOffset;
 
                 Log.d(TAG, "Final margins - Top: " + params.topMargin + ", Bottom: " + params.bottomMargin);
 
-                // Agregar el WebView
                 contentView.addView(embeddedWebView, params);
 
-                // Traer al frente
                 embeddedWebView.bringToFront();
 
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -163,7 +156,6 @@ public class EmbeddedWebView extends CordovaPlugin {
                     embeddedWebView.setTranslationZ(999f);
                 }
 
-                // Aplicar WindowInsets si está disponible (Android 9+)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     embeddedWebView.setOnApplyWindowInsetsListener((v, insets) -> {
                         Log.d(TAG, "WindowInsets applied");
@@ -174,7 +166,6 @@ public class EmbeddedWebView extends CordovaPlugin {
                 contentView.invalidate();
                 contentView.requestLayout();
 
-                // Cargar URL
                 if (options.has("headers")) {
                     JSONObject headersJson = options.getJSONObject("headers");
                     Map<String, String> headers = jsonToMap(headersJson);
