@@ -34,13 +34,6 @@ public class EmbeddedWebView extends CordovaPlugin {
     private WebView embeddedWebView;
     private org.apache.cordova.CordovaWebView cordovaWebView;
 
-    private String containerIdentifier;
-    private ViewTreeObserver.OnGlobalLayoutListener layoutListener;
-    private boolean autoResizeEnabled = true;
-    private int lastOrientation = -1;
-    private long lastPositionCheckTime = 0;
-    private Runnable orientationCheckRunnable;
-
     @Override
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         super.initialize(cordova, webView);
@@ -52,10 +45,9 @@ public class EmbeddedWebView extends CordovaPlugin {
             throws JSONException {
 
         if (action.equals("create")) {
-            String containerId = args.getString(0);
-            String url = args.getString(1);
-            JSONObject options = args.getJSONObject(2);
-            this.create(containerId, url, options, callbackContext);
+            String url = args.getString(0);
+            JSONObject options = args.getJSONObject(1);
+            this.create(url, options, callbackContext);
             return true;
         }
 
@@ -101,8 +93,7 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
-    private void create(final String containerId, final String url, final JSONObject options,
-            final CallbackContext callbackContext) {
+    private void create(final String url, final JSONObject options, final CallbackContext callbackContext) {
         Log.d(TAG, "Creating WebView");
 
         if (embeddedWebView != null) {
@@ -110,333 +101,68 @@ public class EmbeddedWebView extends CordovaPlugin {
             destroy(callbackContext);
         }
 
-        containerIdentifier = containerId;
+        cordova.getActivity().runOnUiThread(() -> {
+            try {
+                int top = options.optInt("top", 0);
+                int height = options.optInt("height", ViewGroup.LayoutParams.MATCH_PARENT);
+                int width = ViewGroup.LayoutParams.MATCH_PARENT;
 
-        cordova.getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String script = "(function() {" +
-                        "  var container = document.getElementById('" + containerIdentifier + "');" +
-                        "  if (container) {" +
-                        "    var rect = container.getBoundingClientRect();" +
-                        "    return JSON.stringify({" +
-                        "      x: rect.left," +
-                        "      y: rect.top," +
-                        "      width: rect.width," +
-                        "      height: rect.height" +
-                        "    });" +
-                        "  }" +
-                        "  return null;" +
-                        "})()";
+                embeddedWebView = new WebView(cordova.getActivity());
 
-                View view = cordovaWebView.getView();
-                WebView systemWebView = null;
+                WebSettings settings = embeddedWebView.getSettings();
+                settings.setJavaScriptEnabled(true);
+                settings.setDomStorageEnabled(true);
+                settings.setDatabaseEnabled(true);
+                settings.setAllowFileAccess(true);
+                settings.setAllowContentAccess(true);
+                settings.setLoadWithOverviewMode(true);
+                settings.setUseWideViewPort(true);
 
-                if (view instanceof WebView) {
-                    systemWebView = (WebView) view;
-                } else if (view instanceof ViewGroup) {
-                    ViewGroup group = (ViewGroup) view;
-                    for (int i = 0; i < group.getChildCount(); i++) {
-                        View child = group.getChildAt(i);
-                        if (child instanceof WebView) {
-                            systemWebView = (WebView) child;
-                            break;
-                        }
-                    }
-                }
-
-                if (systemWebView == null) {
-                    Log.e(TAG, "WebView not found to execute script");
-                    callbackContext.error("Cannot access main WebView");
-                    return;
-                }
-
-                systemWebView.evaluateJavascript(script, new ValueCallback<String>() {
-                    @Override
-                    public void onReceiveValue(String result) {
-                        try {
-                            if (result == null || result.equals("null")) {
-                                Log.w(TAG, "Container not found: " + containerIdentifier);
-                                return;
-                            }
-
-                            result = result.trim();
-                            if (result.startsWith("\"") && result.endsWith("\"")) {
-                                result = result.substring(1, result.length() - 1);
-                            }
-                            result = result.replace("\\\"", "\"");
-
-                            JSONObject bounds = new JSONObject(result);
-
-                            int x = bounds.getInt("x");
-                            int y = bounds.getInt("y");
-                            int width = bounds.getInt("width");
-                            int height = bounds.getInt("height");
-
-                            Log.d(TAG, "Updating WebView bounds: " + bounds.toString());
-                            createNativeWebView(url, options, x, y, width, height, callbackContext);
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error updating WebView position: " + e.getMessage());
-                        }
-                    }
-
-                });
-            }
-        });
-    }
-
-    private void createNativeWebView(final String url, final JSONObject options,
-            final int x, final int y, final int width, final int height,
-            final CallbackContext callbackContext) {
-
-        cordova.getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    embeddedWebView = new WebView(cordova.getActivity());
-
-                    WebSettings settings = embeddedWebView.getSettings();
-                    settings.setJavaScriptEnabled(true);
-                    settings.setDomStorageEnabled(true);
-                    settings.setDatabaseEnabled(true);
-                    settings.setAllowFileAccess(true);
-                    settings.setAllowContentAccess(true);
-                    settings.setLoadWithOverviewMode(true);
-                    settings.setUseWideViewPort(true);
-                    settings.setBuiltInZoomControls(false);
+                if (options.optBoolean("enableZoom", false)) {
+                    settings.setBuiltInZoomControls(true);
                     settings.setDisplayZoomControls(false);
-
-                    try {
-                        if (options.has("enableZoom")) {
-                            boolean enableZoom = options.getBoolean("enableZoom");
-                            settings.setBuiltInZoomControls(enableZoom);
-                            settings.setDisplayZoomControls(enableZoom);
-                        }
-
-                        if (options.has("clearCache") && options.getBoolean("clearCache")) {
-                            embeddedWebView.clearCache(true);
-                        }
-
-                        if (options.has("userAgent")) {
-                            settings.setUserAgentString(options.getString("userAgent"));
-                        }
-                    } catch (JSONException e) {
-                        Log.w(TAG, "Error applying options: " + e.getMessage());
-                    }
-
-                    embeddedWebView.setWebViewClient(new WebViewClient() {
-                        @Override
-                        public void onPageFinished(WebView view, String url) {
-                            Log.d(TAG, "Page loaded: " + url);
-                        }
-
-                        @Override
-                        public void onReceivedError(WebView view, int errorCode,
-                                String description, String failingUrl) {
-                            Log.e(TAG, "Error loading page: " + description);
-                        }
-                    });
-
-                    embeddedWebView.setWebChromeClient(new WebChromeClient() {
-                        @Override
-                        public boolean onConsoleMessage(android.webkit.ConsoleMessage consoleMessage) {
-                            Log.d(TAG, "Embedded WebView Console: " + consoleMessage.message());
-                            return true;
-                        }
-                    });
-
-                    embeddedWebView.setBackgroundColor(Color.WHITE);
-
-                    positionWebView(x, y, width, height);
-
-                    if (autoResizeEnabled) {
-                        setupAutoResize();
-                    }
-                    if (options.has("headers")) {
-                        JSONObject headersJson = options.getJSONObject("headers");
-                        Map<String, String> headers = jsonToMap(headersJson);
-                        embeddedWebView.loadUrl(url, headers);
-                    } else {
-                        embeddedWebView.loadUrl(url);
-                    }
-
-                    Log.d(TAG, "WebView created successfully");
-                    callbackContext.success("WebView created successfully");
-                } catch (Exception e) {
-                    Log.e(TAG, "Error creating WebView: " + e.getMessage());
-                    e.printStackTrace();
-                    callbackContext.error("Error creating WebView: " + e.getMessage());
                 }
+
+                if (options.optBoolean("clearCache", false)) {
+                    embeddedWebView.clearCache(true);
+                }
+
+                if (options.has("userAgent")) {
+                    settings.setUserAgentString(options.getString("userAgent"));
+                }
+
+                embeddedWebView.setWebViewClient(new WebViewClient());
+                embeddedWebView.setWebChromeClient(new WebChromeClient());
+                embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
+
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
+                params.topMargin = top;
+
+                ViewGroup rootView = cordova.getActivity().findViewById(android.R.id.content);
+                rootView.addView(embeddedWebView, params);
+
+                if (options.has("headers")) {
+                    JSONObject headersJson = options.getJSONObject("headers");
+                    Map<String, String> headers = jsonToMap(headersJson);
+                    embeddedWebView.loadUrl(url, headers);
+                } else {
+                    embeddedWebView.loadUrl(url);
+                }
+
+                Log.d(TAG, "WebView created successfully with offsets");
+                callbackContext.success("WebView created successfully with offsets");
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error creating WebView: " + e.getMessage());
+                callbackContext.error("Error creating WebView: " + e.getMessage());
             }
         });
-    }
-
-    private void positionWebView(int x, int y, int width, int height) {
-        // Limit to 5 checks per second
-        if (System.currentTimeMillis() - lastPositionCheckTime < 200) {
-            return;
-        }
-        lastPositionCheckTime = System.currentTimeMillis();
-
-        ViewGroup rootView = (ViewGroup) cordova.getActivity()
-                .findViewById(android.R.id.content);
-
-        if (embeddedWebView == null) {
-            Log.w(TAG, "positionWebView called but embeddedWebView is null");
-            return;
-        }
-
-        float density = cordova.getActivity().getResources().getDisplayMetrics().density;
-        int deviceX = Math.round(x * density);
-        int deviceY = Math.round(y * density);
-        int deviceWidth = Math.round(width * density);
-        int deviceHeight = Math.round(height * density);
-
-        Log.d(TAG, String.format("Positioning WebView - CSS: [%d,%d,%d,%d] Device: [%d,%d,%d,%d]",
-                x, y, width, height, deviceX, deviceY, deviceWidth, deviceHeight));
-
-        if (embeddedWebView.getParent() != null) {
-            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) embeddedWebView.getLayoutParams();
-            params.width = deviceWidth;
-            params.height = deviceHeight;
-            params.leftMargin = deviceX;
-            params.topMargin = deviceY;
-            embeddedWebView.setLayoutParams(params);
-            embeddedWebView.requestLayout();
-        } else {
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                    deviceWidth, deviceHeight);
-            params.leftMargin = deviceX;
-            params.topMargin = deviceY;
-
-            rootView.addView(embeddedWebView, params);
-        }
-    }
-
-    private void setupAutoResize() {
-        Log.d(TAG, "Setting up auto-resize listener");
-
-        if (layoutListener != null) {
-            View rootView = cordova.getActivity().findViewById(android.R.id.content);
-            rootView.getViewTreeObserver().removeOnGlobalLayoutListener(layoutListener);
-        }
-
-        layoutListener = new ViewTreeObserver.OnGlobalLayoutListener() {
-            @Override
-            public void onGlobalLayout() {
-                updateWebViewPosition();
-            }
-        };
-
-        View rootView = cordova.getActivity().findViewById(android.R.id.content);
-        rootView.getViewTreeObserver().addOnGlobalLayoutListener(layoutListener);
-    }
-
-    private void updateWebViewPosition() {
-        if (embeddedWebView == null || cordovaWebView == null) {
-            return;
-        }
-
-        String script = "(function() {" +
-                "  var container = document.getElementById('" + containerIdentifier + "');" +
-                "  if (container) {" +
-                "    var rect = container.getBoundingClientRect();" +
-                "    return JSON.stringify({" +
-                "      x: rect.left," +
-                "      y: rect.top," +
-                "      width: rect.width," +
-                "      height: rect.height" +
-                "    });" +
-                "  }" +
-                "  return null;" +
-                "})()";
-
-        cordova.getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                View view = cordovaWebView.getView();
-                WebView systemWebView = null;
-
-                if (view instanceof WebView) {
-                    systemWebView = (WebView) view;
-                } else if (view instanceof ViewGroup) {
-                    ViewGroup group = (ViewGroup) view;
-                    for (int i = 0; i < group.getChildCount(); i++) {
-                        View child = group.getChildAt(i);
-                        if (child instanceof WebView) {
-                            systemWebView = (WebView) child;
-                            break;
-                        }
-                    }
-                }
-
-                if (systemWebView == null) {
-                    Log.e(TAG, "WebView not found to execute script");
-                    return;
-                }
-
-                systemWebView.evaluateJavascript(script, new ValueCallback<String>() {
-                    @Override
-                    public void onReceiveValue(String result) {
-                        try {
-                            if (result == null || result.equals("null")) {
-                                Log.w(TAG, "Container not found: " + containerIdentifier);
-                                return;
-                            }
-
-                            result = result.trim();
-                            if (result.startsWith("\"") && result.endsWith("\"")) {
-                                result = result.substring(1, result.length() - 1);
-                            }
-                            result = result.replace("\\\"", "\"");
-
-                            JSONObject bounds = new JSONObject(result);
-
-                            int x = bounds.getInt("x");
-                            int y = bounds.getInt("y");
-                            int width = bounds.getInt("width");
-                            int height = bounds.getInt("height");
-
-                            Log.d(TAG, "Updating WebView bounds: " + bounds.toString());
-                            positionWebView(x, y, width, height);
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error updating WebView position: " + e.getMessage());
-                        }
-                    }
-                });
-
-            }
-        });
-
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        Log.d(TAG, "Configuration changed (rotation/resize)");
-
-        if (embeddedWebView != null && autoResizeEnabled) {
-            embeddedWebView.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    updateWebViewPosition();
-                }
-            }, 100);
-        }
     }
 
     private void destroy(final CallbackContext callbackContext) {
         cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (layoutListener != null) {
-                    View rootView = cordova.getActivity().findViewById(android.R.id.content);
-                    if (rootView != null) {
-                        rootView.getViewTreeObserver().removeOnGlobalLayoutListener(layoutListener);
-                    }
-                    layoutListener = null;
-                }
-
                 if (embeddedWebView != null) {
                     ViewGroup parent = (ViewGroup) embeddedWebView.getParent();
                     if (parent != null) {
@@ -572,12 +298,6 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     @Override
     public void onDestroy() {
-        if (layoutListener != null) {
-            View rootView = cordova.getActivity().findViewById(android.R.id.content);
-            if (rootView != null) {
-                rootView.getViewTreeObserver().removeOnGlobalLayoutListener(layoutListener);
-            }
-        }
         if (embeddedWebView != null) {
             embeddedWebView.destroy();
             embeddedWebView = null;
@@ -587,12 +307,6 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     @Override
     public void onReset() {
-        if (layoutListener != null) {
-            View rootView = cordova.getActivity().findViewById(android.R.id.content);
-            if (rootView != null) {
-                rootView.getViewTreeObserver().removeOnGlobalLayoutListener(layoutListener);
-            }
-        }
         if (embeddedWebView != null) {
             embeddedWebView.destroy();
             embeddedWebView = null;
