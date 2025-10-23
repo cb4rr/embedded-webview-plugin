@@ -15,17 +15,12 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.graphics.Color;
 import android.util.Log;
-import android.net.Uri;
-import android.content.res.Configuration;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class EmbeddedWebView extends CordovaPlugin {
@@ -131,6 +126,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                     settings.setUserAgentString(options.getString("userAgent"));
                 }
 
+                embeddedWebView.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
                 embeddedWebView.setWebViewClient(new WebViewClient());
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
@@ -139,7 +135,12 @@ public class EmbeddedWebView extends CordovaPlugin {
                 params.topMargin = top;
 
                 ViewGroup rootView = cordova.getActivity().findViewById(android.R.id.content);
+
+                embeddedWebView.setZ(Float.MAX_VALUE);
+                embeddedWebView.bringToFront();
+
                 rootView.addView(embeddedWebView, params);
+                embeddedWebView.requestLayout();
 
                 if (options.has("headers")) {
                     JSONObject headersJson = options.getJSONObject("headers");
