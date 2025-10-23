@@ -102,6 +102,8 @@ public class EmbeddedWebView extends CordovaPlugin {
                 int height = options.optInt("height", ViewGroup.LayoutParams.MATCH_PARENT);
                 int width = ViewGroup.LayoutParams.MATCH_PARENT;
 
+                Log.d(TAG, "WebView params - URL: " + url + ", Top: " + top + ", Height: " + height);
+
                 embeddedWebView = new WebView(cordova.getActivity());
 
                 WebSettings settings = embeddedWebView.getSettings();
@@ -134,13 +136,20 @@ public class EmbeddedWebView extends CordovaPlugin {
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
                 params.topMargin = top;
 
-                ViewGroup rootView = cordova.getActivity().findViewById(android.R.id.content);
+                ViewGroup decorView = (ViewGroup) cordova.getActivity().getWindow().getDecorView();
+                ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
 
-                embeddedWebView.setZ(Float.MAX_VALUE);
+                contentView.addView(embeddedWebView, params);
+
                 embeddedWebView.bringToFront();
 
-                rootView.addView(embeddedWebView, params);
-                embeddedWebView.requestLayout();
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                    embeddedWebView.setElevation(999f);
+                    embeddedWebView.setTranslationZ(999f);
+                }
+
+                contentView.invalidate();
+                contentView.requestLayout();
 
                 if (options.has("headers")) {
                     JSONObject headersJson = options.getJSONObject("headers");
@@ -150,11 +159,12 @@ public class EmbeddedWebView extends CordovaPlugin {
                     embeddedWebView.loadUrl(url);
                 }
 
-                Log.d(TAG, "WebView created successfully with offsets");
+                Log.d(TAG, "WebView created and brought to front");
                 callbackContext.success("WebView created successfully with offsets");
 
             } catch (Exception e) {
                 Log.e(TAG, "Error creating WebView: " + e.getMessage());
+                e.printStackTrace();
                 callbackContext.error("Error creating WebView: " + e.getMessage());
             }
         });
