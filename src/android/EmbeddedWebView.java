@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.graphics.Color;
 import android.util.Log;
+import android.util.DisplayMetrics;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -88,6 +89,11 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
+    private int pxToDp(int px) {
+        DisplayMetrics displayMetrics = cordova.getActivity().getResources().getDisplayMetrics();
+        return Math.round(px / (displayMetrics.densityDpi / 160f));
+    }
+
     private void create(final String url, final JSONObject options, final CallbackContext callbackContext) {
         Log.d(TAG, "Creating WebView");
 
@@ -98,11 +104,13 @@ public class EmbeddedWebView extends CordovaPlugin {
 
         cordova.getActivity().runOnUiThread(() -> {
             try {
-                int top = options.optInt("top", 0);
-                int height = options.optInt("height", ViewGroup.LayoutParams.MATCH_PARENT);
+                int topPx = options.optInt("top", 0);
+                int heightPx = options.optInt("height", -1);
+                
                 int width = ViewGroup.LayoutParams.MATCH_PARENT;
+                int height = heightPx > 0 ? heightPx : ViewGroup.LayoutParams.MATCH_PARENT;
 
-                Log.d(TAG, "WebView params - URL: " + url + ", Top: " + top + ", Height: " + height);
+                Log.d(TAG, "WebView params - URL: " + url + ", Top(px): " + topPx + ", Height(px): " + heightPx);
 
                 embeddedWebView = new WebView(cordova.getActivity());
 
@@ -134,7 +142,9 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
-                params.topMargin = top;
+                params.topMargin = topPx;
+
+                Log.d(TAG, "LayoutParams - Width: " + width + ", Height: " + height + ", TopMargin: " + topPx);
 
                 ViewGroup decorView = (ViewGroup) cordova.getActivity().getWindow().getDecorView();
                 ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
@@ -159,8 +169,8 @@ public class EmbeddedWebView extends CordovaPlugin {
                     embeddedWebView.loadUrl(url);
                 }
 
-                Log.d(TAG, "WebView created and brought to front");
-                callbackContext.success("WebView created successfully with offsets");
+                Log.d(TAG, "WebView created successfully");
+                callbackContext.success("WebView created successfully");
 
             } catch (Exception e) {
                 Log.e(TAG, "Error creating WebView: " + e.getMessage());
