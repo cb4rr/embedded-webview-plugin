@@ -15,6 +15,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.FrameLayout;
 import android.graphics.Color;
 import android.util.Log;
@@ -89,11 +90,6 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
-    private int pxToDp(int px) {
-        DisplayMetrics displayMetrics = cordova.getActivity().getResources().getDisplayMetrics();
-        return Math.round(px / (displayMetrics.densityDpi / 160f));
-    }
-
     private void create(final String url, final JSONObject options, final CallbackContext callbackContext) {
         Log.d(TAG, "Creating WebView");
 
@@ -104,16 +100,16 @@ public class EmbeddedWebView extends CordovaPlugin {
 
         cordova.getActivity().runOnUiThread(() -> {
             try {
-                int topPx = options.optInt("top", 0);
-                int heightPx = options.optInt("height", -1);
-                
-                int width = ViewGroup.LayoutParams.MATCH_PARENT;
-                int height = heightPx > 0 ? heightPx : ViewGroup.LayoutParams.MATCH_PARENT;
+                // Obtener valores de offset (en píxeles)
+                int topOffset = options.optInt("top", 0);
+                int bottomOffset = options.optInt("bottom", 0);
 
-                Log.d(TAG, "WebView params - URL: " + url + ", Top(px): " + topPx + ", Height(px): " + heightPx);
+                Log.d(TAG, "WebView config - URL: " + url);
+                Log.d(TAG, "Offsets - Top: " + topOffset + "px, Bottom: " + bottomOffset + "px");
 
                 embeddedWebView = new WebView(cordova.getActivity());
 
+                // Configurar WebView
                 WebSettings settings = embeddedWebView.getSettings();
                 settings.setJavaScriptEnabled(true);
                 settings.setDomStorageEnabled(true);
@@ -141,16 +137,25 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
-                params.topMargin = topPx;
-
-                Log.d(TAG, "LayoutParams - Width: " + width + ", Height: " + height + ", TopMargin: " + topPx);
-
+                // Obtener el content view
                 ViewGroup decorView = (ViewGroup) cordova.getActivity().getWindow().getDecorView();
                 ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
 
+                // Crear LayoutParams que ocupen toda la pantalla
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT);
+
+                // Aplicar offsets como márgenes
+                params.topMargin = topOffset;
+                params.bottomMargin = bottomOffset;
+
+                Log.d(TAG, "Final margins - Top: " + params.topMargin + ", Bottom: " + params.bottomMargin);
+
+                // Agregar el WebView
                 contentView.addView(embeddedWebView, params);
 
+                // Traer al frente
                 embeddedWebView.bringToFront();
 
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -158,9 +163,18 @@ public class EmbeddedWebView extends CordovaPlugin {
                     embeddedWebView.setTranslationZ(999f);
                 }
 
+                // Aplicar WindowInsets si está disponible (Android 9+)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    embeddedWebView.setOnApplyWindowInsetsListener((v, insets) -> {
+                        Log.d(TAG, "WindowInsets applied");
+                        return insets;
+                    });
+                }
+
                 contentView.invalidate();
                 contentView.requestLayout();
 
+                // Cargar URL
                 if (options.has("headers")) {
                     JSONObject headersJson = options.getJSONObject("headers");
                     Map<String, String> headers = jsonToMap(headersJson);
