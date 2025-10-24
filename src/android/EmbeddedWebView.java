@@ -90,6 +90,18 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
+    @Override
+    public boolean onOverrideBackbutton() {
+        if (embeddedWebView != null && embeddedWebView.canGoBack()) {
+            cordova.getActivity().runOnUiThread(() -> {
+                embeddedWebView.goBack();
+                Log.d(TAG, "Back button intercepted - navigated back in WebView");
+            });
+            return true;
+        }
+        return false;
+    }
+
     private void create(final String url, final JSONObject options, final CallbackContext callbackContext) {
         Log.d(TAG, "Creating WebView");
 
@@ -314,6 +326,20 @@ public class EmbeddedWebView extends CordovaPlugin {
                     } else {
                         callbackContext.error("Cannot go back");
                     }
+                } else {
+                    callbackContext.error("WebView not initialized");
+                }
+            }
+        });
+    }
+
+    private void canGoBack(final CallbackContext callbackContext) {
+        cordova.getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (embeddedWebView != null) {
+                    boolean canGoBack = embeddedWebView.canGoBack();
+                    callbackContext.success(canGoBack ? 1 : 0);
                 } else {
                     callbackContext.error("WebView not initialized");
                 }
