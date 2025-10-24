@@ -156,6 +156,17 @@ public class EmbeddedWebView extends CordovaPlugin {
                     settings.setUserAgentString(options.getString("userAgent"));
                 }
 
+                // Performance
+                settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
+                settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                settings.setEnableSmoothTransition(true);
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                    embeddedWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                } else {
+                    embeddedWebView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+                }
+
                 embeddedWebView.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
                 embeddedWebView.setWebViewClient(new WebViewClient());
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
@@ -175,8 +186,8 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.bringToFront();
 
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                    embeddedWebView.setElevation(999f);
-                    embeddedWebView.setTranslationZ(999f);
+                    embeddedWebView.setElevation(10f);
+                    embeddedWebView.setTranslationZ(10f);
                 }
 
                 contentView.invalidate();
