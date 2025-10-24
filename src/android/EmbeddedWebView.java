@@ -173,17 +173,15 @@ public class EmbeddedWebView extends CordovaPlugin {
                 settings.setCacheMode(WebSettings.LOAD_DEFAULT);
                 settings.setEnableSmoothTransition(true);
 
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
-                    embeddedWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-                } else {
-                    embeddedWebView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-                }
+                embeddedWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
                 // Scrollbars
                 embeddedWebView.setVerticalScrollBarEnabled(false);
                 embeddedWebView.setHorizontalScrollBarEnabled(false);
                 embeddedWebView.setScrollbarFadingEnabled(true);
                 embeddedWebView.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
+                embeddedWebView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+
 
                 // Smooth scrolling
                 embeddedWebView.setWebViewClient(new WebViewClient() {
@@ -191,11 +189,11 @@ public class EmbeddedWebView extends CordovaPlugin {
                     public void onPageFinished(WebView view, String url) {
                         String css = "html, body { scroll-behavior: smooth !important; }";
                         String js = "var style = document.createElement('style');"
-                                  + "style.innerHTML = `" + css + "`;"
-                                  + "document.head.appendChild(style);";
+                                + "style.innerHTML = `" + css + "`;"
+                                + "document.head.appendChild(style);";
                         view.evaluateJavascript(js, null);
                     }
-                });                
+                });
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
