@@ -90,7 +90,8 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
-    // TODO: Cordova don't allow to override, search for a better way to intercept back button
+    // TODO: Cordova don't allow to override, search for a better way to intercept
+    // back button
     public boolean onBackPressed() {
         if (embeddedWebView != null && embeddedWebView.canGoBack()) {
             cordova.getActivity().runOnUiThread(() -> {
@@ -125,20 +126,25 @@ public class EmbeddedWebView extends CordovaPlugin {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                     WindowInsets insets = decorView.getRootWindowInsets();
                     if (insets != null) {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            android.view.DisplayCutout cutout = insets.getDisplayCutout();
-                            if (cutout != null) {
-                                safeTop = cutout.getSafeInsetTop();
-                                safeBottom = cutout.getSafeInsetBottom();
+                        View cordovaView = cordovaWebView.getView();
+                        boolean cordovaConsumesInsets = cordovaView.getFitsSystemWindows();
+                
+                        if (!cordovaConsumesInsets) {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                                android.view.DisplayCutout cutout = insets.getDisplayCutout();
+                                if (cutout != null) {
+                                    safeTop = cutout.getSafeInsetTop();
+                                    safeBottom = cutout.getSafeInsetBottom();
+                                }
                             }
+                            safeTop = Math.max(safeTop, insets.getSystemWindowInsetTop());
+                            safeBottom = Math.max(safeBottom, insets.getSystemWindowInsetBottom());
                         }
-                        safeTop = Math.max(safeTop, insets.getSystemWindowInsetTop());
-                        safeBottom = Math.max(safeBottom, insets.getSystemWindowInsetBottom());
                     }
                 }
-
+                
                 Log.d(TAG, "Safe area insets - Top: " + safeTop + "px, Bottom: " + safeBottom + "px");
-
+                
                 int finalTopMargin = safeTop + topOffset;
                 int finalBottomMargin = safeBottom + bottomOffset;
 
@@ -181,7 +187,6 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setScrollbarFadingEnabled(true);
                 embeddedWebView.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
                 embeddedWebView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
-
 
                 // Smooth scrolling
                 embeddedWebView.setWebViewClient(new WebViewClient() {
