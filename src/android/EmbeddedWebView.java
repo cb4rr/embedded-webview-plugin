@@ -90,7 +90,7 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
-    @Override
+    // TODO: Cordova don't allow to override, search for a better way to intercept back button
     public boolean onBackPressed() {
         if (embeddedWebView != null && embeddedWebView.canGoBack()) {
             cordova.getActivity().runOnUiThread(() -> {
