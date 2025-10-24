@@ -104,7 +104,33 @@ public class EmbeddedWebView extends CordovaPlugin {
                 int bottomOffset = options.optInt("bottom", 0);
 
                 Log.d(TAG, "WebView config - URL: " + url);
-                Log.d(TAG, "Offsets - Top: " + topOffset + "px, Bottom: " + bottomOffset + "px");
+                Log.d(TAG, "User offsets - Top: " + topOffset + "px, Bottom: " + bottomOffset + "px");
+
+                ViewGroup decorView = (ViewGroup) cordova.getActivity().getWindow().getDecorView();
+                int safeTop = 0;
+                int safeBottom = 0;
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    WindowInsets insets = decorView.getRootWindowInsets();
+                    if (insets != null) {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            android.view.DisplayCutout cutout = insets.getDisplayCutout();
+                            if (cutout != null) {
+                                safeTop = cutout.getSafeInsetTop();
+                                safeBottom = cutout.getSafeInsetBottom();
+                            }
+                        }
+                        safeTop = Math.max(safeTop, insets.getSystemWindowInsetTop());
+                        safeBottom = Math.max(safeBottom, insets.getSystemWindowInsetBottom());
+                    }
+                }
+
+                Log.d(TAG, "Safe area insets - Top: " + safeTop + "px, Bottom: " + safeBottom + "px");
+
+                int finalTopMargin = safeTop + topOffset;
+                int finalBottomMargin = safeBottom + bottomOffset;
+
+                Log.d(TAG, "Final margins - Top: " + finalTopMargin + "px, Bottom: " + finalBottomMargin + "px");
 
                 embeddedWebView = new WebView(cordova.getActivity());
 
@@ -135,17 +161,14 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
-                ViewGroup decorView = (ViewGroup) cordova.getActivity().getWindow().getDecorView();
                 ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
 
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT);
 
-                params.topMargin = topOffset;
-                params.bottomMargin = bottomOffset;
-
-                Log.d(TAG, "Final margins - Top: " + params.topMargin + ", Bottom: " + params.bottomMargin);
+                params.topMargin = finalTopMargin;
+                params.bottomMargin = finalBottomMargin;
 
                 contentView.addView(embeddedWebView, params);
 
@@ -154,13 +177,6 @@ public class EmbeddedWebView extends CordovaPlugin {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                     embeddedWebView.setElevation(999f);
                     embeddedWebView.setTranslationZ(999f);
-                }
-
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    embeddedWebView.setOnApplyWindowInsetsListener((v, insets) -> {
-                        Log.d(TAG, "WindowInsets applied");
-                        return insets;
-                    });
                 }
 
                 contentView.invalidate();
