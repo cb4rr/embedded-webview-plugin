@@ -179,8 +179,23 @@ public class EmbeddedWebView extends CordovaPlugin {
                     embeddedWebView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
                 }
 
+                // Scrollbars
+                embeddedWebView.setVerticalScrollBarEnabled(false);
+                embeddedWebView.setHorizontalScrollBarEnabled(false);
+                embeddedWebView.setScrollbarFadingEnabled(true);
                 embeddedWebView.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
-                embeddedWebView.setWebViewClient(new WebViewClient());
+
+                // Smooth scrolling
+                embeddedWebView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(WebView view, String url) {
+                        String css = "html, body { scroll-behavior: smooth !important; }";
+                        String js = "var style = document.createElement('style');"
+                                  + "style.innerHTML = `" + css + "`;"
+                                  + "document.head.appendChild(style);";
+                        view.evaluateJavascript(js, null);
+                    }
+                });                
                 embeddedWebView.setWebChromeClient(new WebChromeClient());
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
