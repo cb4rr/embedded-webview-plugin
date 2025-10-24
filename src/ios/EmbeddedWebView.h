@@ -1,18 +1,11 @@
-#import <Cordova/CDVPlugin.h>
+#import <Cordova/CDV.h>
 #import <WebKit/WebKit.h>
 
 @interface EmbeddedWebView : CDVPlugin
 
 @property (nonatomic, strong) WKWebView *embeddedWebView;
-@property (nonatomic, strong) NSMutableArray *whitelistDomains;  // Fix name
-@property (nonatomic, assign) BOOL allowSubdomains;
-@property (nonatomic, assign) BOOL whitelistEnabled;
-@property (nonatomic, strong) NSString *containerIdentifier;
-@property (nonatomic, assign) BOOL autoResizeEnabled;
 
 - (void)create:(CDVInvokedUrlCommand*)command;
-- (void)setWhitelist:(CDVInvokedUrlCommand*)command;
-- (void)clearWhitelist:(CDVInvokedUrlCommand*)command;
 - (void)destroy:(CDVInvokedUrlCommand*)command;
 - (void)loadUrl:(CDVInvokedUrlCommand*)command;
 - (void)executeScript:(CDVInvokedUrlCommand*)command;

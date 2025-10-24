@@ -1,361 +1,202 @@
 #import "EmbeddedWebView.h"
 
-@interface EmbeddedWebView () <WKNavigationDelegate, WKUIDelegate>
-@end
-
 @implementation EmbeddedWebView
 
 - (void)pluginInitialize {
     [super pluginInitialize];
-    self.whitelistDomains = [[NSMutableArray alloc] init];
-    self.allowSubdomains = YES;
-    self.whitelistEnabled = NO;
-    self.autoResizeEnabled = YES;
-    
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(orientationChanged:)
-                                                 name:UIDeviceOrientationDidChangeNotification
-                                               object:nil];
+    NSLog(@"EmbeddedWebView plugin initialized");
 }
-
-#pragma mark - Whitelist Management
-
-- (void)setWhitelist:(CDVInvokedUrlCommand*)command {
-    NSArray *domains = [command.arguments objectAtIndex:0];
-    BOOL allowSubs = [[command.arguments objectAtIndex:1] boolValue];
-    
-    if (![domains isKindOfClass:[NSArray class]]) {
-        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                                    messageAsString:@"domains must be an array"];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        return;
-    }
-    
-    [self.whitelistDomains removeAllObjects];
-    for (NSString *domain in domains) {
-        [self.whitelistDomains addObject:[domain lowercaseString]];
-    }
-    
-    self.allowSubdomains = allowSubs;
-    self.whitelistEnabled = YES;
-    
-    NSString *message = [NSString stringWithFormat:@"Whitelist configured with %lu domains", (unsigned long)self.whitelistDomains.count];
-    NSLog(@"[EmbeddedWebView] %@", message);
-    
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                messageAsString:message];
-    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-}
-
-- (void)clearWhitelist:(CDVInvokedUrlCommand*)command {
-    [self.whitelistDomains removeAllObjects];
-    self.whitelistEnabled = NO;
-    
-    NSLog(@"[EmbeddedWebView] Whitelist cleared");
-    
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                messageAsString:@"Whitelist cleared"];
-    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-}
-
-- (BOOL)isUrlAllowed:(NSString *)urlString {
-    if (!self.whitelistEnabled || self.whitelistDomains.count == 0) {
-        return YES;
-    }
-    
-    NSURL *url = [NSURL URLWithString:urlString];
-    NSString *host = [[url host] lowercaseString];
-    
-    if (!host) {
-        return NO;
-    }
-    
-    NSLog(@"[EmbeddedWebView] Checking URL: %@ (host: %@)", urlString, host);
-    
-    for (NSString *allowedDomain in self.whitelistDomains) {
-        if ([allowedDomain hasPrefix:@"*."]) {
-            NSString *baseDomain = [allowedDomain substringFromIndex:2];
-            if ([host isEqualToString:baseDomain] || [host hasSuffix:[@"." stringByAppendingString:baseDomain]]) {
-                NSLog(@"[EmbeddedWebView] URL allowed by wildcard: %@", allowedDomain);
-                return YES;
-            }
-        } else if ([host isEqualToString:allowedDomain]) {
-            NSLog(@"[EmbeddedWebView] URL allowed by exact match: %@", allowedDomain);
-            return YES;
-        } else if (self.allowSubdomains && [host hasSuffix:[@"." stringByAppendingString:allowedDomain]]) {
-            NSLog(@"[EmbeddedWebView] URL allowed by subdomain: %@", allowedDomain);
-            return YES;
-        }
-    }
-    
-    NSLog(@"[EmbeddedWebView] URL blocked by whitelist: %@", urlString);
-    return NO;
-}
-
-#pragma mark - WebView Creation
 
 - (void)create:(CDVInvokedUrlCommand*)command {
-    NSLog(@"[EmbeddedWebView] Creating WebView");
+    NSLog(@"Creating WebView");
     
     if (self.embeddedWebView != nil) {
-        NSLog(@"[EmbeddedWebView] WebView already exists, destroying before creating a new one");
+        NSLog(@"WebView already exists, destroying before creating a new one");
         [self destroyWebView];
     }
     
-    NSString *containerId = [command.arguments objectAtIndex:0];
-    NSString *urlString = [command.arguments objectAtIndex:1];
-    NSDictionary *options = [command.arguments objectAtIndex:2];
+    NSString *urlString = [command.arguments objectAtIndex:0];
+    NSDictionary *options = [command.arguments objectAtIndex:1];
     
-    // Configure whitelist from options
-    if (options[@"whitelist"]) {
-        NSArray *whitelistArray = options[@"whitelist"];
-        BOOL allowSubs = [options[@"allowSubdomains"] boolValue];
-        if (allowSubs == NO && options[@"allowSubdomains"] == nil) {
-            allowSubs = YES; // default
-        }
-        
-        [self.whitelistDomains removeAllObjects];
-        for (NSString *domain in whitelistArray) {
-            [self.whitelistDomains addObject:[domain lowercaseString]];
-        }
-        
-        self.allowSubdomains = allowSubs;
-        self.whitelistEnabled = YES;
-        NSLog(@"[EmbeddedWebView] Whitelist configured from options: %lu domains", (unsigned long)self.whitelistDomains.count);
-    }
+    __weak EmbeddedWebView *weakSelf = self;
     
-    self.autoResizeEnabled = YES;
-    if (options[@"autoResize"] && [options[@"autoResize"] isKindOfClass:[NSNumber class]]) {
-        self.autoResizeEnabled = [options[@"autoResize"] boolValue];
-    }
-    
-    self.containerIdentifier = containerId;
-    
-    if (![self isUrlAllowed:urlString]) {
-        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                                    messageAsString:[NSString stringWithFormat:@"URL not allowed by whitelist: %@", urlString]];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        return;
-    }
-    
-    [self getContainerBounds:containerId completion:^(CGRect bounds) {
-        if (CGRectIsNull(bounds)) {
-            NSLog(@"[EmbeddedWebView] Container not found: %@", containerId);
-            return;
-        }
-        
-        [self createNativeWebView:urlString options:options bounds:bounds callbackId:command.callbackId];
-    }];
-}
-
-- (WKWebView *)getCordovaWebView {
-    // Fix access to Cordova WKWebView
-    if ([self.webView isKindOfClass:[WKWebView class]]) {
-        return (WKWebView *)self.webView;
-    }
-    return nil;
-}
-
-- (void)getContainerBounds:(NSString *)containerId completion:(void (^)(CGRect))completion {
-    NSString *script = [NSString stringWithFormat:
-        @"(function() {"
-        @"  var container = document.getElementById('%@');"
-        @"  if (container) {"
-        @"    var rect = container.getBoundingClientRect();"
-        @"    return JSON.stringify({"
-        @"      x: rect.left,"
-        @"      y: rect.top,"
-        @"      width: rect.width,"
-        @"      height: rect.height"
-        @"    });"
-        @"  }"
-        @"  return null;"
-        @"})();", containerId];
-    
-    WKWebView *cordovaWebView = [self getCordovaWebView];
-    if (!cordovaWebView) {
-        NSLog(@"[EmbeddedWebView] Could not get Cordova WKWebView");
-        completion(CGRectNull);
-        return;
-    }
-    
-    [cordovaWebView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
-        if (error || !result || [result isEqual:[NSNull null]]) {
-            completion(CGRectNull);
-            return;
-        }
-        
-        NSData *data = [result dataUsingEncoding:NSUTF8StringEncoding];
-        NSDictionary *bounds = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        
-        if (bounds) {
-            CGFloat x = [bounds[@"x"] doubleValue];
-            CGFloat y = [bounds[@"y"] doubleValue];
-            CGFloat width = [bounds[@"width"] doubleValue];
-            CGFloat height = [bounds[@"height"] doubleValue];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @try {
+            CGFloat topOffset = [[options objectForKey:@"top"] floatValue];
+            CGFloat bottomOffset = [[options objectForKey:@"bottom"] floatValue];
             
-            completion(CGRectMake(x, y, width, height));
-        } else {
-            completion(CGRectNull);
-        }
-    }];
-}
-
-- (void)createNativeWebView:(NSString *)urlString options:(NSDictionary *)options bounds:(CGRect)bounds callbackId:(NSString *)callbackId {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-        config.allowsInlineMediaPlayback = YES;
-        
-        self.embeddedWebView = [[WKWebView alloc] initWithFrame:bounds configuration:config];
-        self.embeddedWebView.navigationDelegate = self;
-        self.embeddedWebView.UIDelegate = self;
-        self.embeddedWebView.opaque = NO;
-        self.embeddedWebView.backgroundColor = [UIColor whiteColor];
-        
-        // Apply options
-        if (options[@"enableZoom"] && ![options[@"enableZoom"] boolValue]) {
-            NSString *js = @"var meta = document.createElement('meta'); meta.setAttribute('name', 'viewport'); meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'); document.getElementsByTagName('head')[0].appendChild(meta);";
-            WKUserScript *script = [[WKUserScript alloc] initWithSource:js injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES];
-            [self.embeddedWebView.configuration.userContentController addUserScript:script];
-        }
-        
-        [self positionWebView:bounds];
-        
-        // Load URL
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:urlString]];
-        
-        if (options[@"headers"]) {
-            NSDictionary *headers = options[@"headers"];
-            for (NSString *key in headers) {
-                [request setValue:headers[key] forHTTPHeaderField:key];
+            NSLog(@"WebView config - URL: %@", urlString);
+            NSLog(@"User offsets - Top: %.2fpx, Bottom: %.2fpx", topOffset, bottomOffset);
+            
+            UIWindow *window = [UIApplication sharedApplication].keyWindow;
+            UIView *mainView = weakSelf.viewController.view;
+            
+            CGFloat safeTop = 0;
+            CGFloat safeBottom = 0;
+            
+            if (@available(iOS 11.0, *)) {
+                UIEdgeInsets safeAreaInsets = window.safeAreaInsets;
+                
+                // Check if Cordova webview consumes safe area
+                BOOL cordovaConsumesSafeArea = !weakSelf.webView.scrollView.contentInsetAdjustmentBehavior == UIScrollViewContentInsetAdjustmentNever;
+                
+                if (!cordovaConsumesSafeArea) {
+                    safeTop = safeAreaInsets.top;
+                    safeBottom = safeAreaInsets.bottom;
+                }
             }
+            
+            NSLog(@"Safe area insets - Top: %.2fpx, Bottom: %.2fpx", safeTop, safeBottom);
+            
+            CGFloat finalTopMargin = safeTop + topOffset;
+            CGFloat finalBottomMargin = safeBottom + bottomOffset;
+            
+            NSLog(@"Final margins - Top: %.2fpx, Bottom: %.2fpx", finalTopMargin, finalBottomMargin);
+            
+            // Create WKWebView configuration
+            WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+            config.allowsInlineMediaPlayback = YES;
+            config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+            
+            // Enable storage
+            config.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
+            
+            // Calculate frame
+            CGRect screenBounds = [UIScreen mainScreen].bounds;
+            CGFloat webViewHeight = screenBounds.size.height - finalTopMargin - finalBottomMargin;
+            CGRect frame = CGRectMake(0, finalTopMargin, screenBounds.size.width, webViewHeight);
+            
+            // Create WebView
+            weakSelf.embeddedWebView = [[WKWebView alloc] initWithFrame:frame configuration:config];
+            weakSelf.embeddedWebView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            weakSelf.embeddedWebView.backgroundColor = [UIColor clearColor];
+            weakSelf.embeddedWebView.opaque = NO;
+            
+            // Configure scrolling
+            weakSelf.embeddedWebView.scrollView.showsHorizontalScrollIndicator = NO;
+            weakSelf.embeddedWebView.scrollView.showsVerticalScrollIndicator = NO;
+            weakSelf.embeddedWebView.scrollView.bounces = YES;
+            
+            // Enable zoom if requested
+            if ([[options objectForKey:@"enableZoom"] boolValue]) {
+                weakSelf.embeddedWebView.scrollView.minimumZoomScale = 1.0;
+                weakSelf.embeddedWebView.scrollView.maximumZoomScale = 3.0;
+            } else {
+                weakSelf.embeddedWebView.scrollView.minimumZoomScale = 1.0;
+                weakSelf.embeddedWebView.scrollView.maximumZoomScale = 1.0;
+            }
+            
+            // Clear cache if requested
+            if ([[options objectForKey:@"clearCache"] boolValue]) {
+                NSSet *dataTypes = [NSSet setWithArray:@[
+                    WKWebsiteDataTypeDiskCache,
+                    WKWebsiteDataTypeMemoryCache
+                ]];
+                NSDate *dateFrom = [NSDate dateWithTimeIntervalSince1970:0];
+                [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:dataTypes
+                                                           modifiedSince:dateFrom
+                                                       completionHandler:^{}];
+            }
+            
+            // Custom User-Agent
+            if ([options objectForKey:@"userAgent"]) {
+                NSString *userAgent = [options objectForKey:@"userAgent"];
+                weakSelf.embeddedWebView.customUserAgent = userAgent;
+            }
+            
+            // Add to view hierarchy
+            [mainView addSubview:weakSelf.embeddedWebView];
+            [mainView bringSubviewToFront:weakSelf.embeddedWebView];
+            
+            // Load URL
+            NSURL *url = [NSURL URLWithString:urlString];
+            NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+            
+            // Add custom headers if provided
+            NSDictionary *headers = [options objectForKey:@"headers"];
+            if (headers && [headers isKindOfClass:[NSDictionary class]]) {
+                for (NSString *key in headers) {
+                    [request setValue:[headers objectForKey:key] forHTTPHeaderField:key];
+                }
+            }
+            
+            [weakSelf.embeddedWebView loadRequest:request];
+            
+            NSLog(@"WebView created successfully");
+            
+            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                        messageAsString:@"WebView created successfully"];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            
+        } @catch (NSException *exception) {
+            NSLog(@"Error creating WebView: %@", exception.reason);
+            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                        messageAsString:[NSString stringWithFormat:@"Error creating WebView: %@", exception.reason]];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
-        
-        if (options[@"userAgent"]) {
-            self.embeddedWebView.customUserAgent = options[@"userAgent"];
-        }
-        
-        [self.embeddedWebView loadRequest:request];
-        
-        NSLog(@"[EmbeddedWebView] WebView created successfully");
-        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                    messageAsString:@"WebView created successfully"];
-        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
     });
 }
-
-- (void)positionWebView:(CGRect)bounds {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (!self.embeddedWebView) {
-            NSLog(@"[EmbeddedWebView] positionWebView called but embeddedWebView is nil");
-            return;
-        }
-        
-        UIView *parentView = self.webView.superview;
-        if (!parentView) {
-            parentView = self.viewController.view;
-        }
-        
-        CGFloat scale = [[UIScreen mainScreen] scale];
-        CGRect deviceBounds = CGRectMake(
-            bounds.origin.x * scale,
-            bounds.origin.y * scale,
-            bounds.size.width * scale,
-            bounds.size.height * scale
-        );
-        
-        NSLog(@"[EmbeddedWebView] Positioning WebView - CSS: [%.0f,%.0f,%.0f,%.0f] Device: [%.0f,%.0f,%.0f,%.0f]",
-              bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height,
-              deviceBounds.origin.x, deviceBounds.origin.y, deviceBounds.size.width, deviceBounds.size.height);
-        
-        self.embeddedWebView.frame = bounds;
-        
-        if (!self.embeddedWebView.superview) {
-            [parentView addSubview:self.embeddedWebView];
-        }
-    });
-}
-
-- (void)updateWebViewPosition {
-    if (!self.embeddedWebView || !self.containerIdentifier) {
-        return;
-    }
-    
-    [self getContainerBounds:self.containerIdentifier completion:^(CGRect bounds) {
-        if (!CGRectIsNull(bounds)) {
-            NSLog(@"[EmbeddedWebView] Updating WebView bounds");
-            [self positionWebView:bounds];
-        }
-    }];
-}
-
-#pragma mark - Orientation Change
-
-- (void)orientationChanged:(NSNotification *)notification {
-    if (self.embeddedWebView && self.autoResizeEnabled) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [self updateWebViewPosition];
-        });
-    }
-}
-
-#pragma mark - WebView Actions
 
 - (void)destroy:(CDVInvokedUrlCommand*)command {
+    __weak EmbeddedWebView *weakSelf = self;
+    
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self destroyWebView];
-        
-        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                    messageAsString:@"WebView destroyed"];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+        if (weakSelf.embeddedWebView != nil) {
+            [weakSelf destroyWebView];
+            NSLog(@"WebView destroyed");
+            
+            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                        messageAsString:@"WebView destroyed"];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+        } else {
+            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                        messageAsString:@"No WebView to destroy"];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+        }
     });
 }
 
 - (void)destroyWebView {
-    if (self.embeddedWebView) {
-        [self.embeddedWebView removeFromSuperview];
+    if (self.embeddedWebView != nil) {
         [self.embeddedWebView stopLoading];
-        self.embeddedWebView.navigationDelegate = nil;
-        self.embeddedWebView.UIDelegate = nil;
+        [self.embeddedWebView removeFromSuperview];
         self.embeddedWebView = nil;
-        NSLog(@"[EmbeddedWebView] WebView destroyed");
     }
 }
 
 - (void)loadUrl:(CDVInvokedUrlCommand*)command {
     NSString *urlString = [command.arguments objectAtIndex:0];
-    NSDictionary *headers = nil;
+    NSDictionary *headers = command.arguments.count > 1 ? [command.arguments objectAtIndex:1] : nil;
     
-    if (command.arguments.count > 1 && [command.arguments objectAtIndex:1] != [NSNull null]) {
-        headers = [command.arguments objectAtIndex:1];
-    }
-    
-    if (![self isUrlAllowed:urlString]) {
-        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                                    messageAsString:[NSString stringWithFormat:@"URL not allowed by whitelist: %@", urlString]];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        return;
-    }
+    __weak EmbeddedWebView *weakSelf = self;
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:urlString]];
-            
-            if (headers) {
-                for (NSString *key in headers) {
-                    [request setValue:headers[key] forHTTPHeaderField:key];
+        if (weakSelf.embeddedWebView != nil) {
+            @try {
+                NSURL *url = [NSURL URLWithString:urlString];
+                NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+                
+                if (headers && [headers isKindOfClass:[NSDictionary class]]) {
+                    for (NSString *key in headers) {
+                        [request setValue:[headers objectForKey:key] forHTTPHeaderField:key];
+                    }
                 }
+                
+                [weakSelf.embeddedWebView loadRequest:request];
+                
+                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                            messageAsString:[NSString stringWithFormat:@"URL loaded: %@", urlString]];
+                [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                
+            } @catch (NSException *exception) {
+                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                            messageAsString:[NSString stringWithFormat:@"Error loading URL: %@", exception.reason]];
+                [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             }
-            
-            [self.embeddedWebView loadRequest:request];
-            
-            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                        messageAsString:[NSString stringWithFormat:@"URL loaded: %@", urlString]];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         } else {
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                         messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     });
 }
@@ -363,23 +204,26 @@
 - (void)executeScript:(CDVInvokedUrlCommand*)command {
     NSString *script = [command.arguments objectAtIndex:0];
     
+    __weak EmbeddedWebView *weakSelf = self;
+    
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            [self.embeddedWebView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
+        if (weakSelf.embeddedWebView != nil) {
+            [weakSelf.embeddedWebView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
                 if (error) {
                     CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                                       messageAsString:error.localizedDescription];
-                    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+                    [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
                 } else {
+                    NSString *resultString = result ? [NSString stringWithFormat:@"%@", result] : @"";
                     CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-                                                                     messageAsString:[NSString stringWithFormat:@"%@", result ?: @""]];
-                    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+                                                                      messageAsString:resultString];
+                    [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
                 }
             }];
         } else {
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                         messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     });
 }
@@ -387,112 +231,95 @@
 - (void)setVisible:(CDVInvokedUrlCommand*)command {
     BOOL visible = [[command.arguments objectAtIndex:0] boolValue];
     
+    __weak EmbeddedWebView *weakSelf = self;
+    
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            self.embeddedWebView.hidden = !visible;
+        if (weakSelf.embeddedWebView != nil) {
+            weakSelf.embeddedWebView.hidden = !visible;
             
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                         messageAsString:[NSString stringWithFormat:@"Visibility changed to: %@", visible ? @"true" : @"false"]];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         } else {
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                         messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     });
 }
 
 - (void)reload:(CDVInvokedUrlCommand*)command {
+    __weak EmbeddedWebView *weakSelf = self;
+    
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            [self.embeddedWebView reload];
+        if (weakSelf.embeddedWebView != nil) {
+            [weakSelf.embeddedWebView reload];
             
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                         messageAsString:@"WebView reloaded"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         } else {
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                         messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     });
 }
 
 - (void)goBack:(CDVInvokedUrlCommand*)command {
+    __weak EmbeddedWebView *weakSelf = self;
+    
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            if ([self.embeddedWebView canGoBack]) {
-                [self.embeddedWebView goBack];
+        if (weakSelf.embeddedWebView != nil) {
+            if ([weakSelf.embeddedWebView canGoBack]) {
+                [weakSelf.embeddedWebView goBack];
                 
                 CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                             messageAsString:@"Navigated back"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             } else {
                 CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                             messageAsString:@"Cannot go back"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             }
         } else {
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                         messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     });
 }
 
 - (void)goForward:(CDVInvokedUrlCommand*)command {
+    __weak EmbeddedWebView *weakSelf = self;
+    
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.embeddedWebView) {
-            if ([self.embeddedWebView canGoForward]) {
-                [self.embeddedWebView goForward];
+        if (weakSelf.embeddedWebView != nil) {
+            if ([weakSelf.embeddedWebView canGoForward]) {
+                [weakSelf.embeddedWebView goForward];
                 
                 CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                             messageAsString:@"Navigated forward"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             } else {
                 CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                             messageAsString:@"Cannot go forward"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             }
         } else {
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                         messageAsString:@"WebView not initialized"];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     });
 }
 
-#pragma mark - WKNavigationDelegate
-
-- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    NSLog(@"[EmbeddedWebView] Page loaded: %@", webView.URL.absoluteString);
-}
-
-- (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    NSLog(@"[EmbeddedWebView] Error loading page: %@", error.localizedDescription);
-}
-
-- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-    NSString *urlString = navigationAction.request.URL.absoluteString;
-    
-    if ([self isUrlAllowed:urlString]) {
-        NSLog(@"[EmbeddedWebView] Navigation allowed to: %@", urlString);
-        decisionHandler(WKNavigationActionPolicyAllow);
-    } else {
-        NSLog(@"[EmbeddedWebView] Navigation blocked by whitelist: %@", urlString);
-        decisionHandler(WKNavigationActionPolicyCancel);
-    }
-}
-
-#pragma mark - Cleanup
-
 - (void)dispose {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self destroyWebView];
 }
 
-- (void)dealloc {
-    [self dispose];
+- (void)onReset {
+    [self destroyWebView];
 }
 
 @end
