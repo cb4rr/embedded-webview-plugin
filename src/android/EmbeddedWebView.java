@@ -239,7 +239,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                                 if (progressBar != null) {
                                     progressBar.setVisibility(View.GONE);
                                 }
-                            }, 200);
+                            }, 100);
                         }
                         
                         String css = "html, body { scroll-behavior: smooth !important; }";
