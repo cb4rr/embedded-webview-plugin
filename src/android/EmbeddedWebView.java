@@ -32,6 +32,8 @@ public class EmbeddedWebView extends CordovaPlugin {
     private WebView embeddedWebView;
     private ProgressBar progressBar;
     private org.apache.cordova.CordovaWebView cordovaWebView;
+    private boolean canGoBack = false;
+    private boolean canGoForward = false;
 
     @Override
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
@@ -128,7 +130,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                     if (insets != null) {
                         View cordovaView = cordovaWebView.getView();
                         boolean cordovaConsumesInsets = cordovaView.getFitsSystemWindows();
-                
+
                         if (!cordovaConsumesInsets) {
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                                 android.view.DisplayCutout cutout = insets.getDisplayCutout();
@@ -142,9 +144,9 @@ public class EmbeddedWebView extends CordovaPlugin {
                         }
                     }
                 }
-                
+
                 Log.d(TAG, "Safe area insets - Top: " + safeTop + "px, Bottom: " + safeBottom + "px");
-                
+
                 int finalTopMargin = safeTop + topOffset;
                 int finalBottomMargin = safeBottom + bottomOffset;
 
@@ -191,17 +193,15 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
 
                 progressBar = new ProgressBar(
-                    cordova.getActivity(),
-                    null,
-                    android.R.attr.progressBarStyleHorizontal
-                );
-                
+                        cordova.getActivity(),
+                        null,
+                        android.R.attr.progressBarStyleHorizontal);
+
                 String progressColor = options.optString("progressColor", "#2196F3");
                 try {
                     progressBar.getProgressDrawable().setColorFilter(
-                        Color.parseColor(progressColor),
-                        PorterDuff.Mode.SRC_IN
-                    );
+                            Color.parseColor(progressColor),
+                            PorterDuff.Mode.SRC_IN);
                 } catch (Exception e) {
                     Log.w(TAG, "Invalid progress color, using default");
                 }
@@ -211,9 +211,8 @@ public class EmbeddedWebView extends CordovaPlugin {
                 int progressHeightPx = (int) (progressHeight * density);
 
                 FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    progressHeightPx
-                );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        progressHeightPx);
                 progressParams.gravity = android.view.Gravity.BOTTOM;
                 progressBar.setMax(100);
                 progressBar.setProgress(0);
@@ -228,6 +227,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                             progressBar.setProgress(0);
                         }
                         Log.d(TAG, "Page started loading: " + url);
+                        fireEvent("loadStart", url);
                     }
 
                     @Override
@@ -239,16 +239,28 @@ public class EmbeddedWebView extends CordovaPlugin {
                                 if (progressBar != null) {
                                     progressBar.setVisibility(View.GONE);
                                 }
-                            }, 100);
+                            }, 200);
                         }
-                        
+
+                        // Smooth scrolling
                         String css = "html, body { scroll-behavior: smooth !important; }";
-                        String js = "var style = document.createElement('style');"
+                        String js = "let style = document.createElement('style');"
                                 + "style.innerHTML = `" + css + "`;"
                                 + "document.head.appendChild(style);";
                         view.evaluateJavascript(js, null);
-                        
+
                         Log.d(TAG, "Page finished loading: " + url);
+
+                        updateNavigationState();
+                        fireEvent("loadStop", url);
+                    }
+
+                    @Override
+                    public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                        super.onReceivedError(view, errorCode, description, failingUrl);
+                        Log.e(TAG, "Error loading page: " + description);
+                        fireEvent("loadError", "{\"url\":\"" + failingUrl + "\",\"code\":" + errorCode
+                                + ",\"message\":\"" + description + "\"}");
                     }
                 });
 
@@ -266,9 +278,8 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
 
                 FrameLayout.LayoutParams webViewParams = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT);
                 webViewContainer.addView(embeddedWebView, webViewParams);
 
                 webViewContainer.addView(progressBar, progressParams);
@@ -276,9 +287,8 @@ public class EmbeddedWebView extends CordovaPlugin {
                 ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
 
                 FrameLayout.LayoutParams containerParams = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT);
                 containerParams.topMargin = finalTopMargin;
                 containerParams.bottomMargin = finalBottomMargin;
 
@@ -418,6 +428,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                 if (embeddedWebView != null) {
                     if (embeddedWebView.canGoBack()) {
                         embeddedWebView.goBack();
+                        embeddedWebView.postDelayed(() -> updateNavigationState(), 100);
                         callbackContext.success("Navigated back");
                     } else {
                         callbackContext.error("Cannot go back");
@@ -450,6 +461,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                 if (embeddedWebView != null) {
                     if (embeddedWebView.canGoForward()) {
                         embeddedWebView.goForward();
+                        embeddedWebView.postDelayed(() -> updateNavigationState(), 100);
                         callbackContext.success("Navigated forward");
                     } else {
                         callbackContext.error("Cannot go forward");
@@ -469,6 +481,49 @@ public class EmbeddedWebView extends CordovaPlugin {
             map.put(key, json.getString(key));
         }
         return map;
+    }
+
+    private void updateNavigationState() {
+        cordova.getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (embeddedWebView != null) {
+                    boolean newCanGoBack = embeddedWebView.canGoBack();
+                    boolean newCanGoForward = embeddedWebView.canGoForward();
+
+                    if (newCanGoBack != canGoBack) {
+                        canGoBack = newCanGoBack;
+                        fireEvent("canGoBackChanged", String.valueOf(canGoBack));
+                    }
+
+                    if (newCanGoForward != canGoForward) {
+                        canGoForward = newCanGoForward;
+                        fireEvent("canGoForwardChanged", String.valueOf(canGoForward));
+                    }
+
+                    String navigationState = "{\"canGoBack\":" + canGoBack + ",\"canGoForward\":" + canGoForward + "}";
+                    fireEvent("navigationStateChanged", navigationState);
+                }
+            }
+        });
+    }
+
+    private void fireEvent(String eventName, String data) {
+        try {
+            String js = "javascript:cordova.fireDocumentEvent('embeddedwebview." + eventName + "', " +
+                    "{detail: " + (data.startsWith("{") ? data : "'" + data + "'") + "});";
+
+            Log.d(TAG, "Firing event: " + eventName + " with data: " + data);
+
+            cordova.getActivity().runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    cordovaWebView.getEngine().evaluateJavascript(js, null);
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Error firing event: " + e.getMessage());
+        }
     }
 
     @Override

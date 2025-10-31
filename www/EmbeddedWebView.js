@@ -1,6 +1,6 @@
-var exec = require('cordova/exec');
+let exec = require('cordova/exec');
 
-var EmbeddedWebView = {
+let EmbeddedWebView = {
     /**
      * Create and show an embedded WebView
      * @param {string} url - URL to load
@@ -106,15 +106,76 @@ var EmbeddedWebView = {
     injectAuthToken: function (token, storageType, key, successCallback, errorCallback) {
         storageType = storageType || 'localStorage';
         key = key || 'authToken';
-        var script = `${storageType}.setItem('${key}', '${token}');`;
+        let script = `${storageType}.setItem('${key}', '${token}');`;
         this.executeScript(script, successCallback, errorCallback);
     },
 
     /** Helper: Get a storage value */
     getStorageValue: function (key, storageType, successCallback, errorCallback) {
         storageType = storageType || 'localStorage';
-        var script = `${storageType}.getItem('${key}');`;
+        let script = `${storageType}.getItem('${key}');`;
         this.executeScript(script, successCallback, errorCallback);
+    },
+
+    /**
+     * Add event listener for WebView events
+     * @param {string} eventName - Event name (loadStart, loadStop, loadError, navigationStateChanged, canGoBackChanged, canGoForwardChanged)
+     * @param {function} callback - Callback function
+     * 
+     * @example
+     * // Listen for navigation state changes
+     * EmbeddedWebView.addEventListener('navigationStateChanged', function(event) {
+     *     console.log('Can go back:', event.detail.canGoBack);
+     *     console.log('Can go forward:', event.detail.canGoForward);
+     * });
+     * 
+     * // Listen when page starts loading
+     * EmbeddedWebView.addEventListener('loadStart', function(event) {
+     *     console.log('Started loading:', event.detail);
+     * });
+     * 
+     * // Listen when page finishes loading
+     * EmbeddedWebView.addEventListener('loadStop', function(event) {
+     *     console.log('Finished loading:', event.detail);
+     * });
+     * 
+     * // Listen for load errors
+     * EmbeddedWebView.addEventListener('loadError', function(event) {
+     *     console.error('Error loading:', event.detail);
+     * });
+     * 
+     * // Listen for back button availability changes
+     * EmbeddedWebView.addEventListener('canGoBackChanged', function(event) {
+     *     let canGoBack = event.detail === 'true';
+     *     console.log('Can go back:', canGoBack);
+     *     // Update UI button state
+     * });
+     * 
+     * // Listen for forward button availability changes
+     * EmbeddedWebView.addEventListener('canGoForwardChanged', function(event) {
+     *     let canGoForward = event.detail === 'true';
+     *     console.log('Can go forward:', canGoForward);
+     *     // Update UI button state
+     * });
+     */
+    addEventListener: function (eventName, callback) {
+        if (typeof callback !== 'function') {
+            console.error('Callback must be a function');
+            return;
+        }
+
+        let eventFullName = 'embeddedwebview.' + eventName;
+        document.addEventListener(eventFullName, callback, false);
+    },
+
+    /**
+     * Remove event listener
+     * @param {string} eventName - Event name
+     * @param {function} callback - Callback function to remove
+     */
+    removeEventListener: function (eventName, callback) {
+        let eventFullName = 'embeddedwebview.' + eventName;
+        document.removeEventListener(eventFullName, callback, false);
     }
 };
 
