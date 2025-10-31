@@ -518,7 +518,13 @@ public class EmbeddedWebView extends CordovaPlugin {
             cordova.getActivity().runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    cordovaWebView.getEngine().evaluateJavascript(js, null);
+                    cordovaWebView.getView().post(() -> {
+                        try {
+                            cordovaWebView.loadUrl(js);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error firing event: " + e.getMessage());
+                        }
+                    });
                 }
             });
         } catch (Exception e) {
