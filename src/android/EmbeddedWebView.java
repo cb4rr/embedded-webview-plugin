@@ -17,9 +17,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.FrameLayout;
+import android.widget.ProgressBar;
 import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.util.Log;
-import android.util.DisplayMetrics;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -29,6 +30,7 @@ public class EmbeddedWebView extends CordovaPlugin {
 
     private static final String TAG = "EmbeddedWebView";
     private WebView embeddedWebView;
+    private ProgressBar progressBar;
     private org.apache.cordova.CordovaWebView cordovaWebView;
 
     @Override
@@ -90,8 +92,6 @@ public class EmbeddedWebView extends CordovaPlugin {
         return false;
     }
 
-    // TODO: Cordova don't allow to override, search for a better way to intercept
-    // back button
     public boolean onBackPressed() {
         if (embeddedWebView != null && embeddedWebView.canGoBack()) {
             cordova.getActivity().runOnUiThread(() -> {
@@ -150,6 +150,8 @@ public class EmbeddedWebView extends CordovaPlugin {
 
                 Log.d(TAG, "Final margins - Top: " + finalTopMargin + "px, Bottom: " + finalBottomMargin + "px");
 
+                FrameLayout webViewContainer = new FrameLayout(cordova.getActivity());
+
                 embeddedWebView = new WebView(cordova.getActivity());
 
                 WebSettings settings = embeddedWebView.getSettings();
@@ -188,36 +190,105 @@ public class EmbeddedWebView extends CordovaPlugin {
                 embeddedWebView.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
                 embeddedWebView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
 
-                // Smooth scrolling
+                progressBar = new ProgressBar(
+                    cordova.getActivity(),
+                    null,
+                    android.R.attr.progressBarStyleHorizontal
+                );
+                
+                String progressColor = options.optString("progressColor", "#2196F3");
+                try {
+                    progressBar.getProgressDrawable().setColorFilter(
+                        Color.parseColor(progressColor),
+                        PorterDuff.Mode.SRC_IN
+                    );
+                } catch (Exception e) {
+                    Log.w(TAG, "Invalid progress color, using default");
+                }
+
+                int progressHeight = options.optInt("progressHeight", 5);
+                float density = cordova.getActivity().getResources().getDisplayMetrics().density;
+                int progressHeightPx = (int) (progressHeight * density);
+
+                FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    progressHeightPx
+                );
+                progressParams.gravity = android.view.Gravity.BOTTOM;
+                progressBar.setMax(100);
+                progressBar.setProgress(0);
+                progressBar.setVisibility(View.GONE);
+
                 embeddedWebView.setWebViewClient(new WebViewClient() {
                     @Override
+                    public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                        super.onPageStarted(view, url, favicon);
+                        if (progressBar != null) {
+                            progressBar.setVisibility(View.VISIBLE);
+                            progressBar.setProgress(0);
+                        }
+                        Log.d(TAG, "Page started loading: " + url);
+                    }
+
+                    @Override
                     public void onPageFinished(WebView view, String url) {
+                        super.onPageFinished(view, url);
+                        if (progressBar != null) {
+                            progressBar.setProgress(100);
+                            progressBar.postDelayed(() -> {
+                                if (progressBar != null) {
+                                    progressBar.setVisibility(View.GONE);
+                                }
+                            }, 200);
+                        }
+                        
                         String css = "html, body { scroll-behavior: smooth !important; }";
                         String js = "var style = document.createElement('style');"
                                 + "style.innerHTML = `" + css + "`;"
                                 + "document.head.appendChild(style);";
                         view.evaluateJavascript(js, null);
+                        
+                        Log.d(TAG, "Page finished loading: " + url);
                     }
                 });
-                embeddedWebView.setWebChromeClient(new WebChromeClient());
+
+                embeddedWebView.setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onProgressChanged(WebView view, int newProgress) {
+                        super.onProgressChanged(view, newProgress);
+                        if (progressBar != null) {
+                            progressBar.setProgress(newProgress);
+                            Log.d(TAG, "Loading progress: " + newProgress + "%");
+                        }
+                    }
+                });
+
                 embeddedWebView.setBackgroundColor(Color.TRANSPARENT);
+
+                FrameLayout.LayoutParams webViewParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                );
+                webViewContainer.addView(embeddedWebView, webViewParams);
+
+                webViewContainer.addView(progressBar, progressParams);
 
                 ViewGroup contentView = (ViewGroup) decorView.findViewById(android.R.id.content);
 
-                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT);
+                FrameLayout.LayoutParams containerParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                );
+                containerParams.topMargin = finalTopMargin;
+                containerParams.bottomMargin = finalBottomMargin;
 
-                params.topMargin = finalTopMargin;
-                params.bottomMargin = finalBottomMargin;
+                contentView.addView(webViewContainer, containerParams);
 
-                contentView.addView(embeddedWebView, params);
-
-                embeddedWebView.bringToFront();
+                webViewContainer.bringToFront();
 
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                    embeddedWebView.setElevation(10f);
-                    embeddedWebView.setTranslationZ(10f);
+                    webViewContainer.setElevation(10f);
+                    webViewContainer.setTranslationZ(10f);
                 }
 
                 contentView.invalidate();
@@ -231,7 +302,7 @@ public class EmbeddedWebView extends CordovaPlugin {
                     embeddedWebView.loadUrl(url);
                 }
 
-                Log.d(TAG, "WebView created successfully");
+                Log.d(TAG, "WebView created successfully with progress bar");
                 callbackContext.success("WebView created successfully");
 
             } catch (Exception e) {
@@ -249,10 +320,14 @@ public class EmbeddedWebView extends CordovaPlugin {
                 if (embeddedWebView != null) {
                     ViewGroup parent = (ViewGroup) embeddedWebView.getParent();
                     if (parent != null) {
-                        parent.removeView(embeddedWebView);
+                        ViewGroup grandParent = (ViewGroup) parent.getParent();
+                        if (grandParent != null) {
+                            grandParent.removeView(parent);
+                        }
                     }
                     embeddedWebView.destroy();
                     embeddedWebView = null;
+                    progressBar = null;
                     Log.d(TAG, "WebView destroyed");
                     callbackContext.success("WebView destroyed");
                 } else {
@@ -310,7 +385,10 @@ public class EmbeddedWebView extends CordovaPlugin {
             @Override
             public void run() {
                 if (embeddedWebView != null) {
-                    embeddedWebView.setVisibility(visible ? View.VISIBLE : View.GONE);
+                    ViewGroup container = (ViewGroup) embeddedWebView.getParent();
+                    if (container != null) {
+                        container.setVisibility(visible ? View.VISIBLE : View.GONE);
+                    }
                     callbackContext.success("Visibility changed to: " + visible);
                 } else {
                     callbackContext.error("WebView not initialized");
@@ -399,6 +477,7 @@ public class EmbeddedWebView extends CordovaPlugin {
             embeddedWebView.destroy();
             embeddedWebView = null;
         }
+        progressBar = null;
         super.onDestroy();
     }
 
@@ -408,6 +487,7 @@ public class EmbeddedWebView extends CordovaPlugin {
             embeddedWebView.destroy();
             embeddedWebView = null;
         }
+        progressBar = null;
         super.onReset();
     }
 }

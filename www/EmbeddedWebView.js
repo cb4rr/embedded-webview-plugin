@@ -8,6 +8,8 @@ var EmbeddedWebView = {
      * @param {number} options.top - Top offset in pixels (distance from top of screen)
      * @param {number} options.height - Height in pixels (visible area for the WebView)
      * @param {object} [options.headers] - Optional custom HTTP headers
+     * @param {object} [options.progressColor] - Optional progress bar color
+     * @param {object} [options.progressHeight] - Optional progress bar height
      * @param {boolean} [options.enableZoom=false] - Enable zoom controls
      * @param {boolean} [options.clearCache=false] - Clear cache before loading
      * @param {string} [options.userAgent] - Custom User-Agent string
@@ -23,7 +25,9 @@ var EmbeddedWebView = {
      * EmbeddedWebView.create('https://example.com', {
      *     top: topOffset,
      *     height: availableHeight,
-     *     headers: { Authorization: 'Bearer token123' }
+     *     headers: { Authorization: 'Bearer token123' },
+     *     progressColor: '#2196F3',
+     *     progressHeight: 5,
      * }, msg => console.log('Success:', msg), err => console.error('Error:', err));
      */
     create: function (url, options, successCallback, errorCallback) {
