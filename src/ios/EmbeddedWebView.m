@@ -25,20 +25,17 @@
     [self.commandDelegate runInBackground:^{
         dispatch_async(dispatch_get_main_queue(), ^{
             @try {
-                // Destroy existing WebView if any
                 if (self.embeddedWebView != nil) {
                     NSLog(@"[EmbeddedWebView] WebView already exists, destroying before creating new one");
                     [self destroyWebView];
                 }
                 
-                // Get layout parameters
                 NSNumber *topOffset = options[@"top"] ?: @0;
                 NSNumber *bottomOffset = options[@"bottom"] ?: @0;
                 
                 NSLog(@"[EmbeddedWebView] WebView config - URL: %@", url);
                 NSLog(@"[EmbeddedWebView] User offsets - Top: %@px, Bottom: %@px", topOffset, bottomOffset);
                 
-                // Get safe area insets
                 CGFloat safeTop = 0;
                 CGFloat safeBottom = 0;
                 
@@ -64,7 +61,6 @@
                 config.allowsInlineMediaPlayback = YES;
                 config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
                 
-                // Enable zoom
                 if ([options[@"enableZoom"] boolValue]) {
                     NSString *viewport = @"var meta = document.createElement('meta'); meta.name = 'viewport'; meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes'; document.getElementsByTagName('head')[0].appendChild(meta);";
                     WKUserScript *script = [[WKUserScript alloc] initWithSource:viewport 
@@ -82,12 +78,10 @@
                 self.embeddedWebView.backgroundColor = [UIColor clearColor];
                 self.embeddedWebView.opaque = NO;
                 
-                // Custom User-Agent
                 if (options[@"userAgent"]) {
                     self.embeddedWebView.customUserAgent = options[@"userAgent"];
                 }
                 
-                // Clear cache
                 if ([options[@"clearCache"] boolValue]) {
                     NSSet *websiteDataTypes = [NSSet setWithArray:@[
                         WKWebsiteDataTypeDiskCache,
@@ -99,7 +93,6 @@
                                                            completionHandler:^{}];
                 }
                 
-                // Add KVO for progress
                 [self.embeddedWebView addObserver:self 
                                        forKeyPath:@"estimatedProgress" 
                                           options:NSKeyValueObservingOptionNew 
@@ -122,16 +115,19 @@
                 UIView *mainView = self.webView.superview;
                 [mainView addSubview:self.webViewContainer];
                 
+                // Setup constraints
                 self.webViewContainer.translatesAutoresizingMaskIntoConstraints = NO;
                 self.embeddedWebView.translatesAutoresizingMaskIntoConstraints = NO;
                 self.progressBar.translatesAutoresizingMaskIntoConstraints = NO;
                 
                 [NSLayoutConstraint activateConstraints:@[
+                    // Container constraints
                     [self.webViewContainer.leadingAnchor constraintEqualToAnchor:mainView.leadingAnchor],
                     [self.webViewContainer.trailingAnchor constraintEqualToAnchor:mainView.trailingAnchor],
                     [self.webViewContainer.topAnchor constraintEqualToAnchor:mainView.topAnchor constant:finalTopMargin],
                     [self.webViewContainer.bottomAnchor constraintEqualToAnchor:mainView.bottomAnchor constant:-finalBottomMargin],
                     
+                    // WebView constraints
                     [self.embeddedWebView.leadingAnchor constraintEqualToAnchor:self.webViewContainer.leadingAnchor],
                     [self.embeddedWebView.trailingAnchor constraintEqualToAnchor:self.webViewContainer.trailingAnchor],
                     [self.embeddedWebView.topAnchor constraintEqualToAnchor:self.webViewContainer.topAnchor],
@@ -147,7 +143,6 @@
                 // Load URL
                 NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
                 
-                // Add custom headers
                 if (options[@"headers"]) {
                     NSDictionary *headers = options[@"headers"];
                     for (NSString *key in headers) {
@@ -384,6 +379,7 @@
             });
         }
         
+        // Inject smooth scrolling CSS
         NSString *css = @"html, body { scroll-behavior: smooth !important; -webkit-overflow-scrolling: touch; }";
         NSString *js = [NSString stringWithFormat:@"var style = document.createElement('style'); style.innerHTML = `%@`; document.head.appendChild(style);", css];
         [webView evaluateJavaScript:js completionHandler:nil];
@@ -470,11 +466,7 @@
         NSLog(@"[EmbeddedWebView] Firing event: %@ with data: %@", eventName, data);
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.webView evaluateJavaScript:js completionHandler:^(id result, NSError *error) {
-                if (error) {
-                    NSLog(@"[EmbeddedWebView] Error firing event: %@", error.localizedDescription);
-                }
-            }];
+            [self.commandDelegate evalJs:js];
         });
     } @catch (NSException *exception) {
         NSLog(@"[EmbeddedWebView] Error firing event: %@", exception.reason);
